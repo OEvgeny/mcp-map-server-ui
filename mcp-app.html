@@ -71,6 +71,78 @@
             font-size: 16px;
             z-index: 1001;
         }
+        /* Tools List Changed Notification */
+        .tools-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            animation: slideInRight 0.3s ease-out;
+            transition: opacity 0.3s ease;
+        }
+        @keyframes slideInRight {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        .notification-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+            min-width: 320px;
+            max-width: 400px;
+        }
+        .notification-icon {
+            font-size: 28px;
+            flex-shrink: 0;
+            animation: spin 2s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .notification-body {
+            flex: 1;
+        }
+        .notification-title {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        .notification-message {
+            font-size: 14px;
+            opacity: 0.95;
+        }
+        .notification-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            font-size: 24px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            flex-shrink: 0;
+            line-height: 1;
+            padding: 0;
+        }
+        .notification-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
     </style>
 </head>
 <body>

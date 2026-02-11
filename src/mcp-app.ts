@@ -7,6 +7,7 @@
  */
 import { App } from "@modelcontextprotocol/ext-apps";
 import type { ContentBlock } from "@modelcontextprotocol/sdk/spec.types.js";
+import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 
 // TypeScript declaration for Cesium loaded from CDN
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -847,6 +848,64 @@ app.ontoolresult = async (result) => {
     }
   }
 };
+
+/**
+ * Display a notification when the server's tool list changes
+ */
+function showToolsChangedNotification(): void {
+  log.info("Tools list changed - displaying notification");
+
+  // Check if notification already exists
+  let notification = document.getElementById("tools-notification");
+
+  if (!notification) {
+    // Create notification element
+    notification = document.createElement("div");
+    notification.id = "tools-notification";
+    notification.className = "tools-notification";
+    notification.innerHTML = `
+      <div class="notification-content">
+        <div class="notification-icon">🔄</div>
+        <div class="notification-body">
+          <div class="notification-title">Tools Updated</div>
+          <div class="notification-message">New tools are now available</div>
+        </div>
+        <button class="notification-close" aria-label="Close notification">×</button>
+      </div>
+    `;
+    document.body.appendChild(notification);
+
+    // Add close button handler
+    const closeBtn = notification.querySelector(".notification-close");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => {
+        if (notification) {
+          notification.style.opacity = "0";
+          setTimeout(() => {
+            notification?.remove();
+          }, 300);
+        }
+      });
+    }
+
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+      if (notification && notification.parentElement) {
+        notification.style.opacity = "0";
+        setTimeout(() => {
+          notification?.remove();
+        }, 300);
+      }
+    }, 5000);
+  }
+}
+
+// Register handler for tools list changed notification using setNotificationHandler
+// This notification is sent by the server when tools are dynamically added/removed
+app.setNotificationHandler(ToolListChangedNotificationSchema, () => {
+  log.info("Received notifications/tools/list_changed");
+  showToolsChangedNotification();
+});
 
 // Initialize Cesium and connect to host
 async function initialize() {
