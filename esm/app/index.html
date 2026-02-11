@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stdio Console</title>
+    <style>
+      :root {
+        --bg0: #070a12;
+        --bg1: #0b1020;
+        --glass: rgba(255, 255, 255, 0.06);
+        --glass2: rgba(255, 255, 255, 0.08);
+        --stroke: rgba(255, 255, 255, 0.10);
+        --stroke2: rgba(255, 255, 255, 0.14);
+        --text: rgba(255, 255, 255, 0.90);
+        --muted: rgba(255, 255, 255, 0.62);
+        --muted2: rgba(255, 255, 255, 0.40);
+        --accent: #c6ff7f;
+        --accent2: #7be495;
+        --danger: #ff6b8a;
+        --shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+          "Segoe UI Emoji";
+        --r: 22px;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: var(--sans);
+        color: var(--text);
+        background: radial-gradient(1200px 800px at 15% 10%, rgba(198,255,127,0.12), transparent 55%),
+                    radial-gradient(900px 700px at 85% 20%, rgba(123,228,149,0.10), transparent 60%),
+                    radial-gradient(1100px 800px at 60% 90%, rgba(129,168,255,0.08), transparent 55%),
+                    linear-gradient(180deg, var(--bg0), var(--bg1));
+        overflow: hidden;
+      }
+
+      /* Subtle animated “stars” overlay */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: -20%;
+        pointer-events: none;
+        opacity: 0.55;
+        background-image:
+          radial-gradient(circle at 10% 20%, rgba(255,255,255,0.28) 0 1px, transparent 1.5px),
+          radial-gradient(circle at 30% 80%, rgba(255,255,255,0.18) 0 1px, transparent 1.6px),
+          radial-gradient(circle at 70% 30%, rgba(255,255,255,0.22) 0 1px, transparent 1.7px),
+          radial-gradient(circle at 85% 65%, rgba(255,255,255,0.16) 0 1px, transparent 1.5px),
+          radial-gradient(circle at 55% 55%, rgba(255,255,255,0.12) 0 1px, transparent 1.8px);
+        background-size: 220px 220px, 260px 260px, 300px 300px, 340px 340px, 420px 420px;
+        animation: drift 18s linear infinite;
+        filter: drop-shadow(0 0 10px rgba(198,255,127,0.10));
+      }
+      @keyframes drift {
+        from { transform: translate3d(-2%, 2%, 0); }
+        to   { transform: translate3d(2%, -2%, 0); }
+      }
+
+      /* Soft grid */
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background:
+          linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px) 0 0 / 48px 48px,
+          linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px) 0 0 / 48px 48px;
+        mask-image: radial-gradient(900px 600px at 50% 30%, rgba(0,0,0,0.9), transparent 70%);
+        opacity: 0.65;
+      }
+
+      .app {
+        height: 100%;
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: 14px;
+        padding: 18px;
+      }
+
+      .topbar {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 14px 16px;
+        border: 1px solid var(--stroke);
+        border-radius: var(--r);
+        background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+        backdrop-filter: blur(14px);
+        box-shadow: var(--shadow);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .logo {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        background:
+          radial-gradient(10px 10px at 30% 30%, rgba(255,255,255,0.55), transparent 60%),
+          linear-gradient(135deg, rgba(198,255,127,0.55), rgba(123,228,149,0.20));
+        box-shadow: 0 8px 24px rgba(198,255,127,0.12);
+        border: 1px solid rgba(255,255,255,0.14);
+      }
+
+      .title {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+      .title h1 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+      }
+      .title .sub {
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .controls {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--stroke);
+        background: rgba(255,255,255,0.05);
+        backdrop-filter: blur(10px);
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 99px;
+        background: var(--accent2);
+        box-shadow: 0 0 0 3px rgba(123,228,149,0.16);
+      }
+      .pill span {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      button, .toggle {
+        appearance: none;
+        border: 1px solid var(--stroke);
+        background: rgba(255,255,255,0.05);
+        color: var(--text);
+        padding: 9px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+        user-select: none;
+      }
+      button:hover, .toggle:hover {
+        border-color: var(--stroke2);
+        background: rgba(255,255,255,0.07);
+        transform: translateY(-1px);
+      }
+      button:active, .toggle:active { transform: translateY(0px); }
+      button.primary {
+        border-color: rgba(198,255,127,0.25);
+        background: linear-gradient(135deg, rgba(198,255,127,0.14), rgba(123,228,149,0.08));
+        box-shadow: 0 12px 28px rgba(198,255,127,0.08);
+      }
+      button.danger {
+        border-color: rgba(255,107,138,0.25);
+        background: linear-gradient(135deg, rgba(255,107,138,0.16), rgba(255,255,255,0.04));
+      }
+
+      .toggle {
+        display: inline-flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .toggle input {
+        accent-color: var(--accent);
+        width: 14px;
+        height: 14px;
+      }
+
+      .main {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 0.44fr 0.56fr;
+        gap: 14px;
+      }
+
+      @media (max-width: 980px) {
+        .main { grid-template-columns: 1fr; }
+      }
+
+      .card {
+        min-height: 0;
+        border-radius: var(--r);
+        border: 1px solid var(--stroke);
+        background: rgba(255,255,255,0.05);
+        backdrop-filter: blur(16px);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      .cardHeader {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 14px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+        background: linear-gradient(180deg, rgba(255,255,255,0.05), transparent);
+      }
+      .cardHeader .label {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        color: rgba(255,255,255,0.82);
+      }
+
+      .tabs {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .tab {
+        padding: 7px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(255,255,255,0.04);
+        color: var(--muted);
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .tab.active {
+        color: rgba(255,255,255,0.92);
+        border-color: rgba(198,255,127,0.22);
+        background: rgba(198,255,127,0.08);
+      }
+
+      .log {
+        min-height: 0;
+        padding: 12px 12px 14px 12px;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.45;
+        color: rgba(255,255,255,0.90);
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        background:
+          radial-gradient(900px 600px at 20% 10%, rgba(198,255,127,0.06), transparent 55%),
+          radial-gradient(900px 700px at 80% 0%, rgba(123,228,149,0.05), transparent 55%),
+          rgba(0,0,0,0.20);
+      }
+      .log.nowrap { white-space: pre; }
+
+      .line {
+        display: block;
+        padding: 2px 4px;
+        border-radius: 8px;
+      }
+      .line:hover { background: rgba(255,255,255,0.04); }
+
+      .tag {
+        display: inline-block;
+        margin-right: 10px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.10);
+        color: var(--muted);
+        background: rgba(255,255,255,0.03);
+        font-size: 11px;
+        letter-spacing: 0.1px;
+        vertical-align: middle;
+      }
+      .tag.out { border-color: rgba(198,255,127,0.18); }
+      .tag.err { border-color: rgba(255,107,138,0.22); color: rgba(255,180,195,0.95); }
+      .tag.meta { border-color: rgba(255,255,255,0.14); color: rgba(255,255,255,0.70); }
+
+      .footer {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        background: linear-gradient(180deg, transparent, rgba(255,255,255,0.03));
+      }
+      .hint {
+        font-size: 12px;
+        color: var(--muted2);
+      }
+
+      .inputArea {
+        min-height: 0;
+        display: grid;
+        grid-template-rows: 1fr auto;
+        gap: 10px;
+        padding: 12px;
+      }
+
+      textarea {
+        width: 100%;
+        height: 100%;
+        min-height: 180px;
+        resize: none;
+        padding: 12px 12px;
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(0,0,0,0.22);
+        color: rgba(255,255,255,0.92);
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.45;
+        outline: none;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+      }
+      textarea:focus {
+        border-color: rgba(198,255,127,0.22);
+        box-shadow: inset 0 0 0 1px rgba(198,255,127,0.08), 0 0 0 4px rgba(198,255,127,0.08);
+      }
+
+      .sendRow {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+      }
+
+      .sendRow .left {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .kbd {
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 2px 6px;
+        border: 1px solid rgba(255,255,255,0.10);
+        border-bottom-color: rgba(255,255,255,0.18);
+        border-radius: 8px;
+        color: rgba(255,255,255,0.78);
+        background: rgba(255,255,255,0.04);
+      }
+
+      .sep {
+        width: 1px;
+        height: 18px;
+        background: rgba(255,255,255,0.10);
+        margin: 0 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="topbar">
+        <div class="brand">
+          <div class="logo" aria-hidden="true"></div>
+          <div class="title">
+            <h1>Stdio Console</h1>
+            <div class="sub">Browser-streams polyfill for <code style="font-family: var(--mono); color: var(--accent)">node:process</code></div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="pill" title="Listening via postMessage loopback">
+            <div class="dot"></div><span>transport: postMessage</span>
+          </div>
+          <label class="toggle" title="Auto-scroll output as new text arrives">
+            <input id="autoscroll" type="checkbox" checked />
+            <span>Auto-scroll</span>
+          </label>
+          <label class="toggle" title="Disable line wrapping in output">
+            <input id="wrap" type="checkbox" checked />
+            <span>Wrap</span>
+          </label>
+          <button id="copy" class="" title="Copy visible output to clipboard">Copy</button>
+          <button id="clear" class="danger" title="Clear output">Clear</button>
+        </div>
+      </div>
+
+      <div class="main">
+        <!-- Input -->
+        <section class="card">
+          <div class="cardHeader">
+            <div class="label">stdin</div>
+            <div class="tabs" style="gap: 10px">
+              <label class="toggle" title="Append a newline when sending">
+                <input id="newline" type="checkbox" checked />
+                <span>Newline</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="inputArea">
+            <textarea id="stdinText" spellcheck="false" placeholder='Type bytes to send into stdin...&#10;Tip: paste framed JSON messages here if your protocol expects it.'></textarea>
+
+            <div class="sendRow">
+              <div class="left">
+                <button id="send" class="primary">Send to stdin</button>
+                <div class="sep"></div>
+                <div class="hint">
+                  <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> to send
+                </div>
+              </div>
+              <div class="hint" id="inCount">0 bytes</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Output -->
+        <section class="card">
+          <div class="cardHeader">
+            <div class="label">stdout / stderr</div>
+            <div class="tabs" id="tabs">
+              <button class="tab active" data-tab="all">All</button>
+              <button class="tab" data-tab="stdout">stdout</button>
+              <button class="tab" data-tab="stderr">stderr</button>
+              <button class="tab" data-tab="meta">meta</button>
+            </div>
+          </div>
+
+          <pre id="log" class="log"></pre>
+
+          <div class="footer">
+            <div class="hint">
+              Listening for <code style="font-family: var(--mono); color: var(--muted)">{"type":"stdout"}</code>,
+              <code style="font-family: var(--mono); color: var(--muted)">{"type":"stderr"}</code> messages
+            </div>
+            <div class="hint" id="outCount">0 bytes</div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <script type="module">
+      import process from "./process.js";
+      import { startStdioServer } from './index.js'
+
+      const $ = (sel) => document.querySelector(sel);
+
+      const logEl = $("#log");
+      const stdinEl = $("#stdinText");
+      const sendBtn = $("#send");
+      const clearBtn = $("#clear");
+      const copyBtn = $("#copy");
+      const autoScrollEl = $("#autoscroll");
+      const wrapEl = $("#wrap");
+      const newlineEl = $("#newline");
+      const tabsEl = $("#tabs");
+      const inCountEl = $("#inCount");
+      const outCountEl = $("#outCount");
+
+      const te = new TextEncoder();
+      const td = new TextDecoder();
+
+      let activeTab = "all";
+      let inBytes = 0;
+      let outBytes = 0;
+
+      // Small helper: normalize posted data to Uint8Array
+      function toU8(data) {
+        if (data instanceof Uint8Array) return data;
+        if (data instanceof ArrayBuffer) return new Uint8Array(data);
+        if (data && data.buffer instanceof ArrayBuffer && typeof data.byteOffset === "number") {
+          return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+        }
+        if (typeof data === "string") return te.encode(data);
+        return te.encode(String(data));
+      }
+
+      function fmtTime(d = new Date()) {
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mm = String(d.getMinutes()).padStart(2, "0");
+        const ss = String(d.getSeconds()).padStart(2, "0");
+        return `${hh}:${mm}:${ss}`;
+      }
+
+      function shouldShow(channel) {
+        return activeTab === "all" || activeTab === channel;
+      }
+
+      function appendLine(channel, text) {
+        // Split to keep formatting crisp
+        const parts = String(text).split(/\n/);
+        for (let i = 0; i < parts.length; i++) {
+          const lineText = parts[i];
+          // Keep empty lines too
+          const line = document.createElement("span");
+          line.className = "line";
+          line.dataset.channel = channel;
+
+          const tag = document.createElement("span");
+          tag.className = `tag ${channel === "stderr" ? "err" : channel === "stdout" ? "out" : "meta"}`;
+          tag.textContent = `${channel}@${fmtTime()}`;
+
+          const body = document.createElement("span");
+          body.textContent = lineText;
+
+          line.append(tag, body, "\n");
+          if (shouldShow(channel)) logEl.appendChild(line);
+        }
+
+        if (autoScrollEl.checked) logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      // Keep a full transcript per channel so tab switching is instant.
+      const transcript = {
+        all: [],
+        stdout: [],
+        stderr: [],
+        meta: [],
+      };
+
+      function record(channel, text) {
+        transcript[channel].push(text);
+        transcript.all.push(
+          channel === "meta" ? text : `[${channel}] ${text}`
+        );
+      }
+
+      function rerender() {
+        logEl.textContent = "";
+        const lines = transcript[activeTab === "all" ? "all" : activeTab];
+        for (const entry of lines) {
+          if (activeTab === "all") {
+            // entry is prefixed; try to re-tag
+            const m = entry.match(/^\[(stdout|stderr)\]\s(.*)$/);
+            if (m) appendLine(m[1], m[2]);
+            else appendLine("meta", entry);
+          } else {
+            appendLine(activeTab, entry);
+          }
+        }
+      }
+
+      function setTab(tab) {
+        activeTab = tab;
+        [...tabsEl.querySelectorAll(".tab")].forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+        rerender();
+      }
+
+      tabsEl.addEventListener("click", (e) => {
+        const btn = e.target.closest(".tab");
+        if (!btn) return;
+        setTab(btn.dataset.tab);
+      });
+
+      wrapEl.addEventListener("change", () => {
+        logEl.classList.toggle("nowrap", !wrapEl.checked);
+      });
+
+      clearBtn.addEventListener("click", () => {
+        transcript.all.length = 0;
+        transcript.stdout.length = 0;
+        transcript.stderr.length = 0;
+        transcript.meta.length = 0;
+        logEl.textContent = "";
+        record("meta", "Cleared output.");
+        rerender();
+        outBytes = 0;
+        outCountEl.textContent = `${outBytes} bytes`;
+      });
+
+      copyBtn.addEventListener("click", async () => {
+        // Copy what's currently visible
+        const lines = transcript[activeTab === "all" ? "all" : activeTab];
+        const text = lines.join("\n");
+        try {
+          await navigator.clipboard.writeText(text);
+          record("meta", "Copied to clipboard.");
+        } catch {
+          record("meta", "Clipboard copy failed (permission?).");
+        }
+        rerender();
+      });
+
+      function updateCounts() {
+        inCountEl.textContent = `${inBytes} bytes`;
+        outCountEl.textContent = `${outBytes} bytes`;
+      }
+
+      // --- stdin sending ---
+      function sendStdin() {
+        let text = stdinEl.value;
+        if (newlineEl.checked && text.length && !text.endsWith("\n")) text += "\n";
+        const bytes = te.encode(text);
+        inBytes += bytes.byteLength;
+
+        // Send via the same message protocol process.js listens to:
+        window.postMessage({ type: "stdin", data: bytes });
+
+        record("meta", `Sent ${bytes.byteLength} bytes to stdin.`);
+        rerender();
+        updateCounts();
+      }
+
+      sendBtn.addEventListener("click", sendStdin);
+      stdinEl.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+          e.preventDefault();
+          sendStdin();
+        }
+      });
+
+      // --- capture stdout/stderr ---
+      window.addEventListener("message", (ev) => {
+        const msg = ev.data;
+        if (!msg || typeof msg !== "object") return;
+
+        if (msg.type === "stdout" || msg.type === "stderr") {
+          const u8 = toU8(msg.data);
+          outBytes += u8.byteLength;
+
+          // Decode as UTF-8; if you need binary, tweak here.
+          const text = td.decode(u8);
+
+          record(msg.type, text);
+          if (activeTab === "all") appendLine(msg.type, text);
+          else if (activeTab === msg.type) appendLine(msg.type, text);
+          else {
+            // just update counters without spamming UI
+            if (autoScrollEl.checked) logEl.scrollTop = logEl.scrollHeight;
+          }
+
+          updateCounts();
+        }
+      });
+
+      // Also listen to internal errors if your code uses process.stdin error events
+      process.stdin.on("error", (e) => {
+        record("meta", `stdin error: ${e?.message ?? String(e)}`);
+        rerender();
+      });
+      process.stdout.on("error", (e) => {
+        record("meta", `stdout error: ${e?.message ?? String(e)}`);
+        rerender();
+      });
+      process.stderr.on("error", (e) => {
+        record("meta", `stderr error: ${e?.message ?? String(e)}`);
+        rerender();
+      });
+
+      // Boot message
+      rerender();
+      updateCounts();
+
+      startStdioServer();
+    </script>
+  </body>
+</html>
