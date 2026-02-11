@@ -928,11 +928,12 @@ Ensure your deployment exposes the `/mcp` endpoint and supports:
 - [x] Model context updates (weather app sends current weather to Claude)
 - [x] Bookmark locations with notes (📌 button with custom notes)
 
-### Phase 4: Advanced Features (✅ Complete)
+### Phase 4: Advanced Features (🚧 Partially Complete)
 - [x] Progressive streaming tool (uzir-weather-stream)
 - [x] Real-time phase-based updates
 - [x] Tool list change notifications (animated toast UI)
 - [x] Notification handler registration (`setNotificationHandler`)
+- [x] Test tool for notifications (`test-tools-notification`)
 - [ ] Comparison mode (multiple locations)
 - [ ] Advanced forms and validation
 - [ ] Keyboard shortcuts (weather-specific)
