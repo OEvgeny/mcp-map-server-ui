@@ -56,6 +56,7 @@ CesiumJS-based globe with OpenStreetMap tiles for geographic visualization.
 | **Progressive Streaming** | Custom tool | 5-phase streaming analysis | ✅ Complete |
 | **Model Context Updates** | `updateModelContext()` | Weather summary sent to Claude | ✅ Complete |
 | **Bookmarks with Notes** | localStorage + UI | Save locations with custom notes | ✅ Complete |
+| **Tool List Changes** | `setNotificationHandler()` | Animated toast notifications for tool updates | ✅ Complete |
 
 ### **Partially Implemented** 🚧
 
@@ -67,7 +68,6 @@ CesiumJS-based globe with OpenStreetMap tiles for geographic visualization.
 
 | Feature | Priority | Effort | Notes |
 |---------|----------|--------|-------|
-| **Tool List Changes** | Medium | Low | `tools/listChanged` notifications |
 | **Real-time Updates** | Medium | Medium | Auto-refresh, live weather data |
 | **Comparison Mode** | Low | High | Multiple locations side-by-side |
 | **Advanced Forms** | Low | Medium | Multi-step forms, validation |
@@ -603,6 +603,38 @@ Global `keydown` event listener detects shortcuts and calls `toggleFullscreen()`
 
 ---
 
+### 17. **Tool List Changed Notifications - Dynamic Tool Updates**
+
+**How It's Tested:** Apps receive and display notifications when server tools change
+
+**Prompt:**
+1. Load weather dashboard or globe viewer
+2. Call the `test-tools-notification` tool (this simulates the server adding/removing tools)
+
+**What to Observe:**
+- ✅ Beautiful animated toast notification slides in from top-right
+- ✅ Purple gradient background with spinning refresh icon (🔄)
+- ✅ Message displays: "Tools Updated - New tools are now available"
+- ✅ Notification auto-dismisses after 5 seconds
+- ✅ Can manually close with × button
+- ✅ Activity log shows: "Received notifications/tools/list_changed"
+- ✅ Multiple notifications stack properly if tools change frequently
+
+**Behind the Scenes:**
+- Apps register notification handler: `app.setNotificationHandler(ToolListChangedNotificationSchema, handler)`
+- When server calls `server.server.notification({ method: "notifications/tools/list_changed" })`, all connected apps receive it
+- The `showToolsChangedNotification()` function creates an animated DOM element with the notification UI
+- CSS animations provide smooth slide-in from right and fade-out on dismiss
+
+**Note:** This notification is primarily intended for MCP host applications. In production, the host receives the notification and can either:
+1. Refresh its tool list automatically
+2. Forward the notification to connected apps (as demonstrated here)
+3. Show its own UI notification to the user
+
+See [TEST_RESULTS.md](./TEST_RESULTS.md) for detailed testing documentation with Playwright MCP.
+
+---
+
 ## 🎯 Testing Checklist
 
 Use this checklist to verify all MCP Apps features:
@@ -628,6 +660,12 @@ Use this checklist to verify all MCP Apps features:
 - [ ] **Keyboard Shortcuts** - Ctrl+Enter toggles, Escape exits fullscreen
 - [ ] **Theme Detection** - Light/dark theme switching works
 - [ ] **Fullscreen Button** - Icon updates, tooltip changes
+
+**Notifications (Phase 4):**
+- [ ] **Tool List Changed** - Toast notification appears when tools update
+- [ ] **Animated UI** - Notification slides in smoothly with spinning icon
+- [ ] **Auto-dismiss** - Notification disappears after 5 seconds
+- [ ] **Manual Close** - × button closes notification immediately
 
 **All features passing?** ✅ MCP Apps APIs fully tested!
 
@@ -723,6 +761,30 @@ Search for places and get coordinates.
 ```
 
 Returns up to 5 matches with coordinates and bounding boxes.
+
+### `test-tools-notification`
+
+Trigger a `tools/list_changed` notification to test dynamic tool list updates.
+
+**Parameters:** None
+
+**What It Does:**
+- Sends `notifications/tools/list_changed` to all connected clients
+- Simulates what happens when the server dynamically adds or removes tools
+- Connected apps display a notification: "Tools Updated - New tools are now available"
+- Demonstrates protocol-level notifications from server to apps
+
+**Example Usage:**
+```
+Call the test-tools-notification tool
+```
+
+**Expected Result:**
+- Tool returns: "Sent tools/list_changed notification to all connected clients"
+- Apps show animated toast notification in top-right corner
+- Notification auto-dismisses after 5 seconds
+
+**Use Case:** Testing notification handlers and demonstrating that apps can respond to server-side tool list changes in real-time.
 
 ---
 
@@ -866,11 +928,12 @@ Ensure your deployment exposes the `/mcp` endpoint and supports:
 - [x] Model context updates (weather app sends current weather to Claude)
 - [x] Bookmark locations with notes (📌 button with custom notes)
 
-### Phase 4: Advanced Features (🚧 In Progress)
+### Phase 4: Advanced Features (✅ Complete)
 - [x] Progressive streaming tool (uzir-weather-stream)
 - [x] Real-time phase-based updates
+- [x] Tool list change notifications (animated toast UI)
+- [x] Notification handler registration (`setNotificationHandler`)
 - [ ] Comparison mode (multiple locations)
-- [ ] Tool list change notifications
 - [ ] Advanced forms and validation
 - [ ] Keyboard shortcuts (weather-specific)
 
