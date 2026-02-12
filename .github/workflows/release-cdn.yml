@@ -1,0 +1,257 @@
+name: Publish ESM CDN Release from releases.yml
+
+on:
+  push:
+    branches:
+      - main
+      - esm
+    paths:
+      - releases.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (full history for tags/branches)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Read releases.yml for next release
+        id: rel
+        shell: bash
+        run: |
+
+          python - <<'PY'
+          import os, re, json, subprocess, sys
+
+          try:
+            import yaml  # type: ignore
+          except Exception:
+            import subprocess
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "pyyaml"])
+            import yaml  # type: ignore
+
+          from pathlib import Path
+          p = Path("releases.yml")
+          if not p.exists():
+            print("releases.yml not found", file=sys.stderr)
+            sys.exit(1)
+
+          data = yaml.safe_load(p.read_text("utf-8"))
+          if isinstance(data, dict) and "releases" in data:
+            entries = data["releases"]
+
+          if not isinstance(entries, list) or not entries:
+            print("releases.yml must contain a non-empty  releases: list.", file=sys.stderr)
+            sys.exit(1)
+
+          def norm_entry(e):
+            if not isinstance(e, dict):
+              return None
+            # Support common key variants
+            version = e.get("version")
+            desc = e.get("description") or ""
+            rname = e.get("release-name") or e.get("release_name") or ""
+            # allow "tag" override if user wants it
+            tag = e.get("tag") or ""
+            return {
+              "version": str(version).strip() if version is not None else "",
+              "description": str(desc).strip(),
+              "release_name": str(rname).strip(),
+              "tag": str(tag).strip(),
+            }
+
+          cleaned = [norm_entry(e) for e in entries]
+          cleaned = [e for e in cleaned if e and e["version"]]
+          if not cleaned:
+            print("No valid entries with 'version' found in releases.yml.", file=sys.stderr)
+            sys.exit(1)
+
+          # Prefer first entry in file order as "latest" (common pattern is newest at top).
+          chosen = cleaned[0]
+
+          # Tag defaults to v<version> unless overridden
+          tag = chosen["tag"] or f"v{chosen['version']}"
+
+          # Skip if tag already exists locally or on origin
+          def tag_exists(tagname: str) -> bool:
+            # local
+            r1 = subprocess.run(["git", "rev-parse", "-q", "--verify", f"refs/tags/{tagname}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if r1.returncode == 0:
+              return True
+            # remote
+            r2 = subprocess.run(["git", "ls-remote", "--tags", "origin", tagname], capture_output=True, text=True)
+            return bool(r2.stdout.strip())
+
+          if tag_exists(tag):
+            # write outputs so later steps can noop cleanly
+            out = os.environ["GITHUB_OUTPUT"]
+            with open(out, "a", encoding="utf-8") as f:
+              f.write(f"should_publish=false\n")
+              f.write(f"tag={tag}\n")
+              f.write(f"version={chosen['version']}\n")
+              f.write(f"release_name={chosen['release_name']}\n")
+              f.write("description<<EOF\n" + chosen["description"] + "\nEOF\n")
+            print(f"Tag {tag} already exists. Nothing to do.")
+            sys.exit(0)
+
+          out = os.environ["GITHUB_OUTPUT"]
+          with open(out, "a", encoding="utf-8") as f:
+            f.write("should_publish=true\n")
+            f.write(f"tag={tag}\n")
+            f.write(f"version={chosen['version']}\n")
+            f.write(f"release_name={chosen['release_name']}\n")
+            f.write("description<<EOF\n" + chosen["description"] + "\nEOF\n")
+          print(f"Will publish {tag}")
+          PY
+
+      - name: Stop early if already published
+        if: steps.rel.outputs.should_publish != 'true'
+        run: echo "No new release to publish."
+
+      - name: Install deps
+        if: steps.rel.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          npm ci && cd esm && npm ci
+
+      - name: Build (main)
+        if: steps.rel.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          npm run build
+          test -d dist
+
+      - name: Build (esm)
+        if: steps.rel.outputs.should_publish == 'true'
+        working-directory: esm
+        shell: bash
+        run: |
+          npm run build
+          test -d out
+
+      - name: Zip the built output
+        if: steps.rel.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          TAG="${{ steps.rel.outputs.tag }}"
+          mkdir -p _release_artifacts
+          (cd esm && zip -r "../_release_artifacts/esm-${TAG}.zip" out)
+          ls -la _release_artifacts
+
+      - name: Prepare git identity
+        if: steps.rel.outputs.should_publish == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create or update releases branch with new out/
+        if: steps.rel.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          TAG="${{ steps.rel.outputs.tag }}"
+
+          # Fetch releases branch if it exists
+          if git ls-remote --exit-code --heads origin releases >/dev/null 2>&1; then
+            git fetch origin releases
+            git worktree add _wt_releases releases
+          else
+            # Create orphan releases branch
+            git worktree add -b releases _wt_releases
+            pushd _wt_releases >/dev/null
+            rm -rf ./* ./.gitignore 2>/dev/null || true
+            echo "# releases branch (built artifacts only)" > README.md
+            git add README.md
+            git commit -m "chore: initialize releases branch"
+            popd >/dev/null
+          fi
+
+          # Copy build output into releases branch worktree.
+          # Layout: /esm/*  (content of esm/out)
+          rm -rf _wt_releases/esm
+          mkdir -p _wt_releases/esm
+          cp -R esm/out/. _wt_releases/esm/
+
+          # Optional metadata (handy for debugging)
+          cat > _wt_releases/esm/RELEASE.txt <<EOF
+          tag: ${TAG}
+          source_sha: ${{ github.sha }}
+          built_at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          EOF
+
+          pushd _wt_releases >/dev/null
+          git add -A
+
+          # Only commit if there are changes (safety)
+          if git diff --cached --quiet; then
+            echo "No changes to commit on releases branch (unexpected)."
+          else
+            git commit -m "release: ${TAG} (esm out/)"
+          fi
+
+          RELEASE_COMMIT="$(git rev-parse HEAD)"
+          echo "release_commit=${RELEASE_COMMIT}" >> "${GITHUB_OUTPUT}"
+
+          # Push branch
+          git push origin releases
+
+          # Create annotated tag on the releases commit and push it
+          git tag -a "${TAG}" -m "CDN release ${TAG}"
+          git push origin "${TAG}"
+
+          popd >/dev/null
+
+      - name: Create GitHub Release (only if release-name is set)
+        if: steps.rel.outputs.should_publish == 'true' && steps.rel.outputs.release_name != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.rel.outputs.tag }}"
+          TITLE="${{ steps.rel.outputs.release_name }}"
+
+          REPO="${{ github.repository }}"
+          CDN_BASE="https://cdn.jsdelivr.net/gh/${REPO}@${TAG}/esm/"
+
+          cat > _release_notes.md <<'__NOTES__'
+          ${{ steps.rel.outputs.description }}
+
+          __NOTES__
+
+          cat >> _release_notes.md <<EOF
+
+          ## CDN
+          The release is available on the jsDelivr CDN at the following URLs:
+          \`\`\`
+            ${CDN_BASE}index.js
+            ${CDN_BASE}mcp.js
+            ${CDN_BASE}server.js
+            ${CDN_BASE}zod.js
+          \`\`\`
+          EOF
+
+          gh release create "${TAG}" \
+            --title "${TITLE}" \
+            --notes-file _release_notes.md \
+            --target "releases" \
+            --verify-tag \
+            "_release_artifacts/esm-${TAG}.zip"

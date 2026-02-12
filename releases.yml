@@ -1,0 +1,5 @@
+releases:
+  - version: 0.0.1
+    release-name: MCP UI ESM Boot
+    description: |
+      This is the initial release of the MCP UI ESM package.

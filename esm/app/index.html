@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stdio Console</title>
+    <title>MessagePort Console</title>
     <style>
       :root {
         --bg0: #070a12;
@@ -383,14 +383,16 @@
         <div class="brand">
           <div class="logo" aria-hidden="true"></div>
           <div class="title">
-            <h1>Stdio Console</h1>
-            <div class="sub">Browser-streams polyfill for <code style="font-family: var(--mono); color: var(--accent)">node:process</code></div>
+            <h1>MessagePort Console</h1>
+            <div class="sub">
+              MessageChannel transport demo (no <code style="font-family: var(--mono); color: var(--accent)">node:process</code>)
+            </div>
           </div>
         </div>
 
         <div class="controls">
-          <div class="pill" title="Listening via postMessage loopback">
-            <div class="dot"></div><span>transport: postMessage</span>
+          <div class="pill" title="In-page MessageChannel loopback">
+            <div class="dot"></div><span>transport: MessageChannel</span>
           </div>
           <label class="toggle" title="Auto-scroll output as new text arrives">
             <input id="autoscroll" type="checkbox" checked />
@@ -409,21 +411,26 @@
         <!-- Input -->
         <section class="card">
           <div class="cardHeader">
-            <div class="label">stdin</div>
+            <div class="label">client → server</div>
             <div class="tabs" style="gap: 10px">
-              <label class="toggle" title="Append a newline when sending">
-                <input id="newline" type="checkbox" checked />
+              <label class="toggle" title="Append a newline when sending (useful for readability only)">
+                <input id="newline" type="checkbox" />
                 <span>Newline</span>
               </label>
             </div>
           </div>
 
           <div class="inputArea">
-            <textarea id="stdinText" spellcheck="false" placeholder='Type bytes to send into stdin...&#10;Tip: paste framed JSON messages here if your protocol expects it.'></textarea>
+            <textarea
+              id="stdinText"
+              spellcheck="false"
+              placeholder='Type a JSON-RPC message object to send. Example:
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+            ></textarea>
 
             <div class="sendRow">
               <div class="left">
-                <button id="send" class="primary">Send to stdin</button>
+                <button id="send" class="primary">Send</button>
                 <div class="sep"></div>
                 <div class="hint">
                   <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> to send
@@ -437,11 +444,11 @@
         <!-- Output -->
         <section class="card">
           <div class="cardHeader">
-            <div class="label">stdout / stderr</div>
+            <div class="label">server → client</div>
             <div class="tabs" id="tabs">
               <button class="tab active" data-tab="all">All</button>
-              <button class="tab" data-tab="stdout">stdout</button>
-              <button class="tab" data-tab="stderr">stderr</button>
+              <button class="tab" data-tab="send">send</button>
+              <button class="tab" data-tab="recv">recv</button>
               <button class="tab" data-tab="meta">meta</button>
             </div>
           </div>
@@ -450,8 +457,8 @@
 
           <div class="footer">
             <div class="hint">
-              Listening for <code style="font-family: var(--mono); color: var(--muted)">{"type":"stdout"}</code>,
-              <code style="font-family: var(--mono); color: var(--muted)">{"type":"stderr"}</code> messages
+              Transport is <code style="font-family: var(--mono); color: var(--muted)">MessagePort</code> (structured clone),
+              messages are validated by your transport schema.
             </div>
             <div class="hint" id="outCount">0 bytes</div>
           </div>
@@ -460,8 +467,8 @@
     </div>
 
     <script type="module">
-      import process from "./process.js";
-      import { startStdioServer } from './index.js'
+      import { startMessageChannelServer } from "./index.js";
+      import { MessagePortClientTransport } from "./mcp.js";
 
       const $ = (sel) => document.querySelector(sel);
 
@@ -478,22 +485,10 @@
       const outCountEl = $("#outCount");
 
       const te = new TextEncoder();
-      const td = new TextDecoder();
 
       let activeTab = "all";
       let inBytes = 0;
       let outBytes = 0;
-
-      // Small helper: normalize posted data to Uint8Array
-      function toU8(data) {
-        if (data instanceof Uint8Array) return data;
-        if (data instanceof ArrayBuffer) return new Uint8Array(data);
-        if (data && data.buffer instanceof ArrayBuffer && typeof data.byteOffset === "number") {
-          return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-        }
-        if (typeof data === "string") return te.encode(data);
-        return te.encode(String(data));
-      }
 
       function fmtTime(d = new Date()) {
         const hh = String(d.getHours()).padStart(2, "0");
@@ -507,17 +502,16 @@
       }
 
       function appendLine(channel, text) {
-        // Split to keep formatting crisp
         const parts = String(text).split(/\n/);
         for (let i = 0; i < parts.length; i++) {
           const lineText = parts[i];
-          // Keep empty lines too
+
           const line = document.createElement("span");
           line.className = "line";
           line.dataset.channel = channel;
 
           const tag = document.createElement("span");
-          tag.className = `tag ${channel === "stderr" ? "err" : channel === "stdout" ? "out" : "meta"}`;
+          tag.className = `tag ${channel === "recv" ? "out" : channel === "send" ? "meta" : "meta"}`;
           tag.textContent = `${channel}@${fmtTime()}`;
 
           const body = document.createElement("span");
@@ -530,19 +524,16 @@
         if (autoScrollEl.checked) logEl.scrollTop = logEl.scrollHeight;
       }
 
-      // Keep a full transcript per channel so tab switching is instant.
       const transcript = {
         all: [],
-        stdout: [],
-        stderr: [],
+        send: [],
+        recv: [],
         meta: [],
       };
 
       function record(channel, text) {
         transcript[channel].push(text);
-        transcript.all.push(
-          channel === "meta" ? text : `[${channel}] ${text}`
-        );
+        transcript.all.push(channel === "meta" ? text : `[${channel}] ${text}`);
       }
 
       function rerender() {
@@ -550,8 +541,7 @@
         const lines = transcript[activeTab === "all" ? "all" : activeTab];
         for (const entry of lines) {
           if (activeTab === "all") {
-            // entry is prefixed; try to re-tag
-            const m = entry.match(/^\[(stdout|stderr)\]\s(.*)$/);
+            const m = entry.match(/^\[(send|recv)\]\s(.*)$/);
             if (m) appendLine(m[1], m[2]);
             else appendLine("meta", entry);
           } else {
@@ -578,8 +568,8 @@
 
       clearBtn.addEventListener("click", () => {
         transcript.all.length = 0;
-        transcript.stdout.length = 0;
-        transcript.stderr.length = 0;
+        transcript.send.length = 0;
+        transcript.recv.length = 0;
         transcript.meta.length = 0;
         logEl.textContent = "";
         record("meta", "Cleared output.");
@@ -589,7 +579,6 @@
       });
 
       copyBtn.addEventListener("click", async () => {
-        // Copy what's currently visible
         const lines = transcript[activeTab === "all" ? "all" : activeTab];
         const text = lines.join("\n");
         try {
@@ -606,72 +595,87 @@
         outCountEl.textContent = `${outBytes} bytes`;
       }
 
-      // --- stdin sending ---
-      function sendStdin() {
-        let text = stdinEl.value;
-        if (newlineEl.checked && text.length && !text.endsWith("\n")) text += "\n";
+      // ---- Boot: create a channel, start server on port2, client uses port1 ----
+      const channel = new MessageChannel();
+
+      // Start the server using your entry point
+      // (this will create MCP server and connect with MessagePortServerTransport(port))
+      startMessageChannelServer(channel.port2).catch((e) => {
+        record("meta", `Server start error: ${e?.message ?? String(e)}`);
+        rerender();
+      });
+
+      // Create client transport on the other port
+      const transport = new MessagePortClientTransport(channel.port1);
+
+      transport.onerror = (e) => {
+        record("meta", `transport error: ${e?.message ?? String(e)}`);
+        rerender();
+      };
+
+      transport.onclose = () => {
+        record("meta", "transport closed");
+        rerender();
+      };
+
+      transport.onmessage = (msg) => {
+        const text = JSON.stringify(msg, null, 2);
         const bytes = te.encode(text);
-        inBytes += bytes.byteLength;
+        outBytes += bytes.byteLength;
 
-        // Send via the same message protocol process.js listens to:
-        window.postMessage({ type: "stdin", data: bytes });
+        record("recv", text);
+        if (activeTab === "all") appendLine("recv", text);
+        else if (activeTab === "recv") appendLine("recv", text);
 
-        record("meta", `Sent ${bytes.byteLength} bytes to stdin.`);
-        rerender();
         updateCounts();
-      }
+      };
 
-      sendBtn.addEventListener("click", sendStdin);
-      stdinEl.addEventListener("keydown", (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-          e.preventDefault();
-          sendStdin();
-        }
-      });
+      await transport.start();
 
-      // --- capture stdout/stderr ---
-      window.addEventListener("message", (ev) => {
-        const msg = ev.data;
-        if (!msg || typeof msg !== "object") return;
-
-        if (msg.type === "stdout" || msg.type === "stderr") {
-          const u8 = toU8(msg.data);
-          outBytes += u8.byteLength;
-
-          // Decode as UTF-8; if you need binary, tweak here.
-          const text = td.decode(u8);
-
-          record(msg.type, text);
-          if (activeTab === "all") appendLine(msg.type, text);
-          else if (activeTab === msg.type) appendLine(msg.type, text);
-          else {
-            // just update counters without spamming UI
-            if (autoScrollEl.checked) logEl.scrollTop = logEl.scrollHeight;
-          }
-
-          updateCounts();
-        }
-      });
-
-      // Also listen to internal errors if your code uses process.stdin error events
-      process.stdin.on("error", (e) => {
-        record("meta", `stdin error: ${e?.message ?? String(e)}`);
-        rerender();
-      });
-      process.stdout.on("error", (e) => {
-        record("meta", `stdout error: ${e?.message ?? String(e)}`);
-        rerender();
-      });
-      process.stderr.on("error", (e) => {
-        record("meta", `stderr error: ${e?.message ?? String(e)}`);
-        rerender();
-      });
-
-      // Boot message
+      record("meta", "MessageChannel ready. Send JSON-RPC to server.");
       rerender();
       updateCounts();
 
-      startStdioServer();
+      // ---- send JSON-RPC messages ----
+      function sendMessage() {
+        let text = stdinEl.value.trim();
+        if (!text) return;
+
+        if (newlineEl.checked && !text.endsWith("\n")) text += "\n";
+
+        let obj;
+        try {
+          // Allow trailing newline for convenience
+          obj = JSON.parse(text);
+        } catch (e) {
+          record("meta", `Parse error: ${e?.message ?? String(e)}`);
+          rerender();
+          return;
+        }
+
+        const pretty = JSON.stringify(obj, null, 2);
+        const bytes = te.encode(pretty);
+        inBytes += bytes.byteLength;
+
+        record("send", pretty);
+        rerender();
+        updateCounts();
+
+        transport.send(obj).catch((e) => {
+          record("meta", `Send failed: ${e?.message ?? String(e)}`);
+          rerender();
+        });
+      }
+
+      sendBtn.addEventListener("click", sendMessage);
+      stdinEl.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+
+      window.__mcp = { channel, transport };
     </script>
   </body>
 </html>
