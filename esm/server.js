@@ -29836,7 +29836,15 @@ var EMPTY_COMPLETION_RESULT = {
 // module/fs.js
 async function readFile(path) {
   const url2 = new URL(path, import.meta.url);
-  return await (await fetch(url2)).text();
+  if (url2.protocol === "file:") {
+    const { readFile: nodeReadFile } = await import("node:fs/promises");
+    const { fileURLToPath } = await import("node:url");
+    return await nodeReadFile(fileURLToPath(url2), "utf8");
+  } else {
+    const res = await fetch(url2);
+    if (!res.ok) throw new Error(`readFile: ${res.status} ${res.statusText} (${url2})`, { cause: res });
+    return await res.text();
+  }
 }
 var fs_default = { readFile };
 
