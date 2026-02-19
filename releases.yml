@@ -1,4 +1,8 @@
 releases:
+  - version: 0.0.3
+    release-name: MCP UI ESM v. 0.0.3
+    description: |
+      This release adds theming from host support.
   - version: 0.0.2
     release-name: MCP UI ESM v. 0.0.2
     description: |

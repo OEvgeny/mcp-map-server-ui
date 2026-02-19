@@ -4,7 +4,7 @@
  * Displays weather information using Open-Meteo API data.
  * Tests MCP Apps communication capabilities: sendLog, sendMessage, sendOpenLink, callServerTool
  */
-import { App } from "@modelcontextprotocol/ext-apps";
+import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from "@modelcontextprotocol/ext-apps";
 import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 
 // Logging utilities that also send to host
@@ -634,7 +634,7 @@ function renderWeather(data: WeatherData): void {
 
   weatherContent.innerHTML = `
     <div class="location-header">
-      <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+      <div class="location-header-row">
         <h1>${data.location}</h1>
         <button id="favorite-btn" class="favorite-btn" title="${favorited ? "Remove from favorites" : "Add to favorites"}" aria-label="${favorited ? "Remove from favorites" : "Add to favorites"}" aria-pressed="${favorited}">${starIcon}</button>
         <button id="bookmark-btn" class="favorite-btn" title="${bookmarked ? "View/edit bookmark" : "Add bookmark with note"}" aria-label="${bookmarked ? "View/edit bookmark" : "Add bookmark with note"}" aria-pressed="${bookmarked}">${bookmarkIcon}</button>
@@ -738,7 +738,7 @@ function renderComparisonView(data: ComparisonData): void {
     // Clear the weather content and show a message
     if (weatherContent) {
       weatherContent.innerHTML = `
-        <div style="text-align: center; padding: 40px; color: white;">
+        <div class="comparison-exit-message">
           <h2>Comparison mode exited</h2>
           <p>Use the search box to look up weather for a location</p>
         </div>
@@ -760,7 +760,7 @@ function renderComparisonView(data: ComparisonData): void {
           renderWeather(updatedLocations[0]);
         } else {
           weatherContent.innerHTML = `
-            <div style="text-align: center; padding: 40px; color: white;">
+            <div class="comparison-exit-message">
               <h2>Comparison mode exited</h2>
               <p>Use the search box to look up weather for a location</p>
             </div>
@@ -978,7 +978,7 @@ function showSearchHistoryDropdown(): void {
         <button class="close-dropdown">×</button>
       </div>
       <div class="history-list">
-        <div style="padding: 20px; text-align: center; color: #999;">No recent searches</div>
+        <div class="history-empty">No recent searches</div>
       </div>
     `;
   } else {
@@ -1055,7 +1055,7 @@ function showKeyboardShortcutsHelp(): void {
   const modal = document.createElement("div");
   modal.className = "insights-modal shortcuts-modal";
   modal.innerHTML = `
-    <div class="insights-content" style="max-width: 600px;">
+    <div class="insights-content insights-content-shortcuts">
       <div class="insights-header">
         <h2>⌨️ Keyboard Shortcuts</h2>
         <button class="close-shortcuts">×</button>
@@ -1102,26 +1102,26 @@ function showBookmarkModal(data: WeatherData): void {
   const modal = document.createElement("div");
   modal.className = "insights-modal bookmark-modal";
   modal.innerHTML = `
-    <div class="insights-content" style="max-width: 500px;">
-      <div class="insights-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+    <div class="insights-content insights-content-bookmark">
+      <div class="insights-header">
         <h2>📌 ${isEdit ? "Edit" : "Add"} Bookmark</h2>
         <button class="close-bookmark">×</button>
       </div>
       <div class="insights-body">
-        <div style="margin-bottom: 16px;">
-          <h3 style="margin: 0 0 8px 0;">${data.location}</h3>
-          <p style="margin: 0; color: #666; font-size: 14px;">${data.latitude.toFixed(2)}°, ${data.longitude.toFixed(2)}°</p>
+        <div class="bookmark-section">
+          <h3 class="bookmark-location-title">${data.location}</h3>
+          <p class="bookmark-location-coords">${data.latitude.toFixed(2)}°, ${data.longitude.toFixed(2)}°</p>
         </div>
-        <div style="margin-bottom: 16px;">
-          <label style="display: block; margin-bottom: 8px; font-weight: 600;">Note:</label>
-          <textarea id="bookmark-note" style="width: 100%; min-height: 100px; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;" placeholder="Add your notes about this location...">${existing?.note || ""}</textarea>
+        <div class="bookmark-section">
+          <label class="bookmark-label">Note:</label>
+          <textarea id="bookmark-note" class="bookmark-textarea" placeholder="Add your notes about this location...">${existing?.note || ""}</textarea>
         </div>
-        <div style="display: flex; gap: 12px; justify-content: flex-end;">
-          ${isEdit ? '<button id="delete-bookmark-btn" class="bookmark-delete-btn" style="margin-right: auto;">Delete</button>' : ""}
+        <div class="bookmark-actions">
+          ${isEdit ? '<button id="delete-bookmark-btn" class="bookmark-delete-btn bookmark-delete-spacer">Delete</button>' : ""}
           <button id="cancel-bookmark-btn" class="bookmark-cancel-btn">Cancel</button>
           <button id="save-bookmark-btn" class="bookmark-save-btn">Save</button>
         </div>
-        ${isEdit ? `<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #eee; font-size: 12px; color: #999;">
+        ${isEdit ? `<div class="bookmark-meta">
           Added: ${new Date(existing!.addedAt).toLocaleString()}<br>
           Updated: ${new Date(existing!.updatedAt).toLocaleString()}
         </div>` : ""}
@@ -1442,7 +1442,7 @@ function displayProgressiveInsights(
   modal.className = "insights-modal stream-modal";
   modal.innerHTML = `
     <div class="insights-content">
-      <div class="insights-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+      <div class="insights-header insights-header-success">
         <h2>🌊 Progressive Weather Analysis</h2>
         <button class="close-insights">×</button>
       </div>
@@ -1453,7 +1453,7 @@ function displayProgressiveInsights(
         </div>
         <div class="stream-progress">
           <div class="progress-bar">
-            <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+            <div id="progress-fill" class="progress-fill"></div>
           </div>
           <p id="progress-text">Initializing stream...</p>
         </div>
@@ -1492,8 +1492,7 @@ function displayProgressiveInsights(
     setTimeout(() => {
       // Add phase content
       const phaseElement = document.createElement("div");
-      phaseElement.className = "stream-phase";
-      phaseElement.style.animation = "slideUp 0.4s ease-out";
+      phaseElement.className = "stream-phase stream-phase-animate";
 
       const phaseContent = renderPhaseContent(update);
       phaseElement.innerHTML = phaseContent;
@@ -1510,8 +1509,7 @@ function displayProgressiveInsights(
       // Final phase
       if (index === totalPhases - 1) {
         progressText.textContent = "Analysis complete! ✓";
-        progressText.style.color = "#10b981";
-        progressText.style.fontWeight = "700";
+        progressText.classList.add("stream-progress-complete");
       }
     }, update.delay);
   });
@@ -1805,6 +1803,12 @@ app.ontoolresult = async (result) => {
   }
 };
 
+function applyHostStyles(hostContext: McpUiHostContext): void {
+  hostContext.styles?.variables && applyHostStyleVariables(hostContext.styles.variables);
+  hostContext.theme && applyDocumentTheme(hostContext.theme);
+  hostContext.styles?.css?.fonts && applyHostFonts(hostContext.styles.css.fonts);
+}
+
 // Handle host context changes (theme, display mode)
 app.onhostcontextchanged = async (context) => {
   await log.info("Host context changed", {
@@ -1888,6 +1892,15 @@ async function initialize() {
   try {
     await app.connect();
     await log.info("Connected to host");
+
+    const context = app.getHostContext();
+    if (context && context.styles?.variables) {
+      log.info("Applying host styles from context", context);
+      applyHostStyles(context);
+    } else {
+      log.info("No host styles found, applying fallback theme");
+      document.documentElement.classList.add("fallback-theme");
+    }
 
     // Initialize telemetry
     initializeTelemetry();
