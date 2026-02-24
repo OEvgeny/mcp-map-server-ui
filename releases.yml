@@ -1,4 +1,8 @@
 releases:
+  - version: 0.0.5
+    release-name: MCP UI ESM v. 0.0.5
+    description: |
+      MCP and WebMCP are friends now.
   - version: 0.0.4
     release-name: MCP UI ESM v. 0.0.4
     description: |

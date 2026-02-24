@@ -552,10 +552,7 @@
 
     <script type="module">
       import { createServer } from "./server.js";
-      import {
-        registerMcpServerToolsAsPageTools,
-        registerMcpServerResourcesAsPageResources,
-      } from "./webmcp.js";
+      import { registerMcpServerAsPageContext } from "./webmcp.js";
 
       const $ = (sel) => document.querySelector(sel);
 
@@ -592,6 +589,7 @@
       let resources = [];
       let activeResource = null;
       let abortController = null;
+      let clientLike = null;
 
       const encoder = new TextEncoder();
 
@@ -813,48 +811,37 @@
         return { resources, resourceTemplates };
       }
 
-      async function registerTools() {
+      async function registerAll() {
+        await ensurePolyfill();
         runHintEl.textContent = "Registering tools...";
+        resourceHintEl.textContent = "Registering resources...";
         try {
-          await registerMcpServerToolsAsPageTools(server, {
+          clientLike = await registerMcpServerAsPageContext(server, {
             filter: (name, tool) => filterTool(name, tool),
             refreshOnToolsChanged: true,
           });
 
-          const mcTools = navigator.modelContext.listTools();
-          const list = mcTools.length ? mcTools : buildToolListFromServer();
-          updateToolList(list);
-          runHintEl.textContent = "Tools registered.";
-        } catch (e) {
-          runHintEl.textContent = "Registration failed.";
-          writeOutput({ error: e?.message ?? String(e) });
-        }
-      }
+          const mcTools = clientLike?.listTools?.() ?? [];
+          const toolList = mcTools.length ? mcTools : buildToolListFromServer();
+          updateToolList(toolList);
 
-      async function registerResources() {
-        resourceHintEl.textContent = "Registering resources...";
-        try {
-          await registerMcpServerResourcesAsPageResources(server, {});
-
-          const { resources, templates } = resolveModelContextResources();
-          if (resources.length || templates.length) {
-            updateResourceList(resources, templates);
+          const templates = clientLike?.listResourceTemplates?.() ?? [];
+          const resourceList = clientLike?.listResources?.() ?? [];
+          if (resourceList.length || templates.length) {
+            updateResourceList(resourceList, templates);
           } else {
             const fallback = buildResourceListFromServer();
             updateResourceList(fallback.resources, fallback.resourceTemplates);
           }
 
+          runHintEl.textContent = "Tools registered.";
           resourceHintEl.textContent = "Resources registered.";
         } catch (e) {
+          runHintEl.textContent = "Registration failed.";
           resourceHintEl.textContent = "Registration failed.";
+          writeOutput({ error: e?.message ?? String(e) });
           writeResourceOutput({ error: e?.message ?? String(e) });
         }
-      }
-
-      async function registerAll() {
-        await ensurePolyfill();
-        await registerTools();
-        await registerResources();
       }
 
       async function runTool() {
@@ -877,15 +864,11 @@
         abortController = new AbortController();
         runHintEl.textContent = "Running...";
 
-        const mcTools = navigator.modelContext.listTools();
-        const mcTool = mcTools.find((t) => t.name === activeTool.name);
-
         try {
-          if (!navigator.modelContext?.executeTool) {
-            throw new Error("Tool executeTool() not available on navigator.modelContext");
+          if (!clientLike) {
+            throw new Error("Client not ready yet.");
           }
-
-          const result = await navigator.modelContext.executeTool(mcTool.name, params, { signal: abortController.signal });
+          const result = await clientLike.executeTool(activeTool.name, params, { signal: abortController.signal });
           writeOutput(result);
           runHintEl.textContent = "Done.";
         } catch (e) {
@@ -903,11 +886,10 @@
 
         resourceHintEl.textContent = "Reading...";
         try {
-          if (!navigator.modelContext?.readResource) {
-            throw new Error("readResource() not available on navigator.modelContext");
+          if (!clientLike) {
+            throw new Error("Client not ready yet.");
           }
-
-          const result = await navigator.modelContext.readResource(uri);
+          const result = await clientLike.readResource(uri);
           writeResourceOutput(result);
           resourceHintEl.textContent = "Done.";
         } catch (e) {
