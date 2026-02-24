@@ -72,7 +72,6 @@ async function convertRegisteredTools(server, options) {
 }
 async function convertRegisteredResources(server, options) {
   const registeredResources = server._registeredResources ?? {};
-  const registeredTemplates = server._registeredResourceTemplates ?? {};
   const converted = [];
   for (const [uri, resource] of Object.entries(registeredResources)) {
     if (resource.enabled === false) continue;
@@ -94,6 +93,11 @@ async function convertRegisteredResources(server, options) {
       }
     });
   }
+  return converted;
+}
+async function convertRegisteredResourceTemplates(server, options) {
+  const registeredTemplates = server._registeredResourceTemplates ?? {};
+  const converted = [];
   for (const [uriTemplate, resource] of Object.entries(registeredTemplates)) {
     if (resource.enabled === false) continue;
     if (options.resourceTemplateFilter && !options.resourceTemplateFilter(uriTemplate, resource)) {
@@ -151,6 +155,97 @@ async function provideModelContextResources(resources) {
     await modelContext.registerResource(resource);
   }
 }
+function createClientLike(tools, resources, templates) {
+  return {
+    listTools: () => {
+      const modelContext = getModelContext();
+      if (typeof modelContext.listTools === "function") {
+        return modelContext.listTools();
+      }
+      return tools;
+    },
+    listResources: () => {
+      const modelContext = getModelContext();
+      if (typeof modelContext.listResources === "function") {
+        return modelContext.listResources();
+      }
+      return resources;
+    },
+    listResourceTemplates: () => {
+      const modelContext = getModelContext();
+      if (typeof modelContext.listResourceTemplates === "function") {
+        return modelContext.listResourceTemplates();
+      }
+      return templates;
+    },
+    executeTool: async (name, params, options) => {
+      const modelContext = getModelContext();
+      if (typeof modelContext.executeTool === "function") {
+        return modelContext.executeTool(name, params, options);
+      }
+      const tool = tools.find((entry) => entry.name === name);
+      if (!tool) {
+        throw new Error(`Tool not found: ${name}`);
+      }
+      return tool.execute(params, options);
+    },
+    readResource: async (uri, options) => {
+      const modelContext = getModelContext();
+      if (typeof modelContext.readResource === "function") {
+        return modelContext.readResource(uri, options);
+      }
+      const resource = resources.find((entry) => entry.uri === uri);
+      if (!resource) {
+        throw new Error(`Resource not found: ${uri}`);
+      }
+      return resource.read(new URL(uri), void 0, options);
+    },
+    request: async (request, resultSchema, options) => {
+      const modelContext = getModelContext();
+      if (typeof modelContext.request === "function") {
+        return modelContext.request(request, resultSchema, options);
+      }
+      if (request.method === "tools/call") {
+        const params = request.params ?? {};
+        const name = params.name;
+        const args = params.arguments ?? {};
+        if (typeof name !== "string" || !name) {
+          throw new Error("tools/call request missing tool name");
+        }
+        const result = typeof modelContext.executeTool === "function" ? await modelContext.executeTool(name, args, options) : await (() => {
+          const tool = tools.find((entry) => entry.name === name);
+          if (!tool) {
+            throw new Error(`Tool not found: ${name}`);
+          }
+          return tool.execute(args, options);
+        })();
+        if (typeof resultSchema.parse === "function") {
+          return resultSchema.parse(result);
+        }
+        return result;
+      }
+      if (request.method === "resources/read") {
+        const params = request.params ?? {};
+        const uri = params.uri;
+        if (typeof uri !== "string" || !uri) {
+          throw new Error("resources/read request missing uri");
+        }
+        const result = typeof modelContext.readResource === "function" ? await modelContext.readResource(uri, options) : await (() => {
+          const resource = resources.find((entry) => entry.uri === uri);
+          if (!resource) {
+            throw new Error(`Resource not found: ${uri}`);
+          }
+          return resource.read(new URL(uri), void 0, options);
+        })();
+        if (typeof resultSchema.parse === "function") {
+          return resultSchema.parse(result);
+        }
+        return result;
+      }
+      throw new Error(`Unsupported request method: ${request.method}`);
+    }
+  };
+}
 function tryRegisterToolsChangedListener(server, refresh, enabled) {
   if (!enabled) return;
   const protocolServer = server.server;
@@ -169,10 +264,34 @@ async function registerMcpServerToolsAsPageTools(server, options = {}) {
   tryRegisterToolsChangedListener(server, refresh, refreshOnToolsChanged);
 }
 async function registerMcpServerResourcesAsPageResources(server, options = {}) {
-  const resources = await convertRegisteredResources(server, options);
-  await provideModelContextResources(resources);
+  const [resources, templates, tools] = await Promise.all([
+    convertRegisteredResources(server, options),
+    convertRegisteredResourceTemplates(server, options),
+    convertRegisteredTools(server, options)
+  ]);
+  await provideModelContextResources([...resources, ...templates]);
+  return createClientLike(tools, resources, templates);
+}
+async function registerMcpServerAsPageContext(server, options = {}) {
+  const refreshOnToolsChanged = options.refreshOnToolsChanged ?? true;
+  const [resources, templates, tools] = await Promise.all([
+    convertRegisteredResources(server, options),
+    convertRegisteredResourceTemplates(server, options),
+    convertRegisteredTools(server, options)
+  ]);
+  await provideModelContextResources([...resources, ...templates]);
+  await provideModelContextTools(tools);
+  if (refreshOnToolsChanged) {
+    const refresh = async () => {
+      const refreshedTools = await convertRegisteredTools(server, options);
+      await provideModelContextTools(refreshedTools);
+    };
+    tryRegisterToolsChangedListener(server, refresh, true);
+  }
+  return createClientLike(tools, resources, templates);
 }
 export {
+  registerMcpServerAsPageContext,
   registerMcpServerResourcesAsPageResources,
   registerMcpServerToolsAsPageTools
 };
