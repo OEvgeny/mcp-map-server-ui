@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebMCP Tool Bridge</title>
+    <script src="https://unpkg.com/@mcp-b/global@latest/dist/index.iife.js"></script>
+    <style>
+      :root {
+        --bg0: #070a12;
+        --bg1: #0b1020;
+        --glass: rgba(255, 255, 255, 0.06);
+        --glass2: rgba(255, 255, 255, 0.08);
+        --stroke: rgba(255, 255, 255, 0.10);
+        --stroke2: rgba(255, 255, 255, 0.14);
+        --text: rgba(255, 255, 255, 0.90);
+        --muted: rgba(255, 255, 255, 0.62);
+        --muted2: rgba(255, 255, 255, 0.40);
+        --accent: #c6ff7f;
+        --accent2: #7be495;
+        --danger: #ff6b8a;
+        --shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+          "Segoe UI Emoji";
+        --r: 22px;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: var(--sans);
+        color: var(--text);
+        background: radial-gradient(1200px 800px at 15% 10%, rgba(198,255,127,0.12), transparent 55%),
+                    radial-gradient(900px 700px at 85% 20%, rgba(123,228,149,0.10), transparent 60%),
+                    radial-gradient(1100px 800px at 60% 90%, rgba(129,168,255,0.08), transparent 55%),
+                    linear-gradient(180deg, var(--bg0), var(--bg1));
+        overflow: hidden;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: -20%;
+        pointer-events: none;
+        opacity: 0.55;
+        background-image:
+          radial-gradient(circle at 10% 20%, rgba(255,255,255,0.28) 0 1px, transparent 1.5px),
+          radial-gradient(circle at 30% 80%, rgba(255,255,255,0.18) 0 1px, transparent 1.6px),
+          radial-gradient(circle at 70% 30%, rgba(255,255,255,0.22) 0 1px, transparent 1.7px),
+          radial-gradient(circle at 85% 65%, rgba(255,255,255,0.16) 0 1px, transparent 1.5px),
+          radial-gradient(circle at 55% 55%, rgba(255,255,255,0.12) 0 1px, transparent 1.8px);
+        background-size: 220px 220px, 260px 260px, 300px 300px, 340px 340px, 420px 420px;
+        animation: drift 18s linear infinite;
+        filter: drop-shadow(0 0 10px rgba(198,255,127,0.10));
+      }
+      @keyframes drift {
+        from { transform: translate3d(-2%, 2%, 0); }
+        to   { transform: translate3d(2%, -2%, 0); }
+      }
+
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background:
+          linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px) 0 0 / 48px 48px,
+          linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px) 0 0 / 48px 48px;
+        mask-image: radial-gradient(900px 600px at 50% 30%, rgba(0,0,0,0.9), transparent 70%);
+        opacity: 0.65;
+      }
+
+      .app {
+        height: 100%;
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: 14px;
+        padding: 18px;
+      }
+
+      .topbar {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 14px 16px;
+        border: 1px solid var(--stroke);
+        border-radius: var(--r);
+        background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+        backdrop-filter: blur(14px);
+        box-shadow: var(--shadow);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .logo {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        background:
+          radial-gradient(10px 10px at 30% 30%, rgba(255,255,255,0.55), transparent 60%),
+          linear-gradient(135deg, rgba(198,255,127,0.55), rgba(123,228,149,0.20));
+        box-shadow: 0 8px 24px rgba(198,255,127,0.12);
+        border: 1px solid rgba(255,255,255,0.14);
+      }
+
+      .title {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+      .title h1 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+      }
+      .title .sub {
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .controls {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--stroke);
+        background: rgba(255,255,255,0.05);
+        backdrop-filter: blur(10px);
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 99px;
+        background: var(--accent2);
+        box-shadow: 0 0 0 3px rgba(123,228,149,0.16);
+      }
+      .pill span {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      button, .toggle {
+        appearance: none;
+        border: 1px solid var(--stroke);
+        background: rgba(255,255,255,0.05);
+        color: var(--text);
+        padding: 9px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+        user-select: none;
+      }
+      button:hover, .toggle:hover {
+        border-color: var(--stroke2);
+        background: rgba(255,255,255,0.07);
+        transform: translateY(-1px);
+      }
+      button:active, .toggle:active { transform: translateY(0px); }
+      button.primary {
+        border-color: rgba(198,255,127,0.25);
+        background: linear-gradient(135deg, rgba(198,255,127,0.14), rgba(123,228,149,0.08));
+        box-shadow: 0 12px 28px rgba(198,255,127,0.08);
+      }
+      button.danger {
+        border-color: rgba(255,107,138,0.25);
+        background: linear-gradient(135deg, rgba(255,107,138,0.16), rgba(255,255,255,0.04));
+      }
+
+      .toggle {
+        display: inline-flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .toggle input {
+        accent-color: var(--accent);
+        width: 14px;
+        height: 14px;
+      }
+
+      .main {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 0.42fr 0.58fr;
+        gap: 14px;
+      }
+
+      .column {
+        min-height: 0;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 14px;
+      }
+
+      @media (max-width: 980px) {
+        .main { grid-template-columns: 1fr; }
+      }
+
+      .card {
+        min-height: 0;
+        border-radius: var(--r);
+        border: 1px solid var(--stroke);
+        background: rgba(255,255,255,0.05);
+        backdrop-filter: blur(16px);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      .cardHeader {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 14px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+        background: linear-gradient(180deg, rgba(255,255,255,0.05), transparent);
+      }
+      .cardHeader .label {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        color: rgba(255,255,255,0.82);
+      }
+
+      .tools {
+        min-height: 0;
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+        overflow: auto;
+      }
+
+      .toolItem {
+        display: grid;
+        gap: 4px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(0,0,0,0.18);
+        cursor: pointer;
+        transition: border-color 120ms ease, transform 120ms ease, background 120ms ease;
+      }
+
+      .resourceItem {
+        display: grid;
+        gap: 4px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(0,0,0,0.18);
+        cursor: pointer;
+        transition: border-color 120ms ease, transform 120ms ease, background 120ms ease;
+      }
+
+      .toolItem:hover {
+        border-color: rgba(198,255,127,0.22);
+        background: rgba(255,255,255,0.06);
+        transform: translateY(-1px);
+      }
+
+      .resourceItem:hover {
+        border-color: rgba(198,255,127,0.22);
+        background: rgba(255,255,255,0.06);
+        transform: translateY(-1px);
+      }
+
+      .toolItem.active {
+        border-color: rgba(198,255,127,0.35);
+        background: rgba(198,255,127,0.10);
+      }
+
+      .resourceItem.active {
+        border-color: rgba(198,255,127,0.35);
+        background: rgba(198,255,127,0.10);
+      }
+
+      .itemHeader {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: space-between;
+      }
+
+      .badge {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.16);
+        color: var(--muted2);
+      }
+
+      .toolName {
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .toolDesc {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .panel {
+        min-height: 0;
+        display: grid;
+        grid-template-rows: auto auto 1fr auto;
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .meta {
+        display: grid;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .schema {
+        font-family: var(--mono);
+        font-size: 12px;
+        padding: 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(0,0,0,0.25);
+        max-height: 120px;
+        overflow: auto;
+        white-space: pre-wrap;
+      }
+
+      textarea {
+        width: 100%;
+        height: 100%;
+        min-height: 160px;
+        resize: none;
+        padding: 12px 12px;
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(0,0,0,0.22);
+        color: rgba(255,255,255,0.92);
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.45;
+        outline: none;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+      }
+      textarea:focus {
+        border-color: rgba(198,255,127,0.22);
+        box-shadow: inset 0 0 0 1px rgba(198,255,127,0.08), 0 0 0 4px rgba(198,255,127,0.08);
+      }
+
+      input[type="text"] {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(0,0,0,0.22);
+        color: rgba(255,255,255,0.92);
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.4;
+        outline: none;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+      }
+      input[type="text"]:focus {
+        border-color: rgba(198,255,127,0.22);
+        box-shadow: inset 0 0 0 1px rgba(198,255,127,0.08), 0 0 0 4px rgba(198,255,127,0.08);
+      }
+
+      .log {
+        min-height: 0;
+        padding: 10px 12px;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.45;
+        color: rgba(255,255,255,0.90);
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        background:
+          radial-gradient(900px 600px at 20% 10%, rgba(198,255,127,0.06), transparent 55%),
+          radial-gradient(900px 700px at 80% 0%, rgba(123,228,149,0.05), transparent 55%),
+          rgba(0,0,0,0.20);
+        border-radius: 14px;
+        border: 1px solid rgba(255,255,255,0.10);
+      }
+
+      .footer {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        background: linear-gradient(180deg, transparent, rgba(255,255,255,0.03));
+      }
+
+      .hint {
+        font-size: 12px;
+        color: var(--muted2);
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: space-between;
+      }
+
+      .status {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .kbd {
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 2px 6px;
+        border: 1px solid rgba(255,255,255,0.10);
+        border-bottom-color: rgba(255,255,255,0.18);
+        border-radius: 8px;
+        color: rgba(255,255,255,0.78);
+        background: rgba(255,255,255,0.04);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="topbar">
+        <div class="brand">
+          <div class="logo" aria-hidden="true"></div>
+          <div class="title">
+            <h1>WebMCP Tool Bridge</h1>
+            <div class="sub">Register MCP tools and resources into navigator.modelContext</div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="pill" title="navigator.modelContext availability">
+            <div class="dot" id="mcDot"></div><span id="mcStatus">modelContext: unknown</span>
+          </div>
+          <label class="toggle" title="Hide test-only tools">
+            <input id="hideTest" type="checkbox" checked />
+            <span>Hide test tool</span>
+          </label>
+          <button id="loadPolyfill">Load polyfill</button>
+          <button id="register" class="primary">Register MCP</button>
+        </div>
+      </div>
+
+      <div class="main">
+        <div class="column">
+          <section class="card">
+            <div class="cardHeader">
+              <div class="label">tools</div>
+              <div class="status" id="toolCount">0 tools</div>
+            </div>
+            <div class="tools" id="toolList"></div>
+            <div class="footer">
+              <div class="hint">Select a tool to inspect schema and run it.</div>
+              <div class="hint"><span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> to execute</div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="cardHeader">
+              <div class="label">resources</div>
+              <div class="status" id="resourceCount">0 resources</div>
+            </div>
+            <div class="tools" id="resourceList"></div>
+            <div class="footer">
+              <div class="hint">Templates require a resolved URI before reading.</div>
+              <div class="hint">Click a resource to prefill the URI.</div>
+            </div>
+          </section>
+        </div>
+
+        <div class="column">
+          <section class="card">
+            <div class="cardHeader">
+              <div class="label">invoke</div>
+              <div class="status" id="invokeStatus">No tool selected</div>
+            </div>
+            <div class="panel">
+              <div class="meta" id="toolMeta">Pick a tool from the list.</div>
+              <pre class="schema" id="schema">{}</pre>
+              <textarea id="params" spellcheck="false" placeholder='{ "query": "Paris" }'></textarea>
+              <div class="row">
+                <div class="hint" id="runHint">Ready</div>
+                <div class="row">
+                  <button id="run" class="primary">Run</button>
+                  <button id="abort" class="danger">Abort</button>
+                </div>
+              </div>
+              <pre class="log" id="output"></pre>
+            </div>
+            <div class="footer">
+              <div class="hint">Uses the WebMCP execute adapter on navigator.modelContext tools.</div>
+              <div class="hint" id="outputCount">0 bytes</div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="cardHeader">
+              <div class="label">read resource</div>
+              <div class="status" id="resourceStatus">No resource selected</div>
+            </div>
+            <div class="panel">
+              <div class="meta" id="resourceMeta">Pick a resource from the list.</div>
+              <input id="resourceUri" type="text" spellcheck="false" placeholder="ui://cesium-map/mcp-app.html" />
+              <div class="row">
+                <div class="hint" id="resourceHint">Ready</div>
+                <div class="row">
+                  <button id="readResource" class="primary">Read</button>
+                </div>
+              </div>
+              <pre class="log" id="resourceOutput"></pre>
+            </div>
+            <div class="footer">
+              <div class="hint">Uses navigator.modelContext.readResource for resolved URIs.</div>
+              <div class="hint" id="resourceOutputCount">0 bytes</div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { createServer } from "./server.js";
+      import {
+        registerMcpServerToolsAsPageTools,
+        registerMcpServerResourcesAsPageResources,
+      } from "./webmcp.js";
+
+      const $ = (sel) => document.querySelector(sel);
+
+      const toolListEl = $("#toolList");
+      const toolCountEl = $("#toolCount");
+      const metaEl = $("#toolMeta");
+      const schemaEl = $("#schema");
+      const paramsEl = $("#params");
+      const outputEl = $("#output");
+      const outputCountEl = $("#outputCount");
+      const invokeStatusEl = $("#invokeStatus");
+      const runHintEl = $("#runHint");
+      const mcStatusEl = $("#mcStatus");
+      const mcDotEl = $("#mcDot");
+      const registerBtn = $("#register");
+      const hideTestEl = $("#hideTest");
+      const runBtn = $("#run");
+      const abortBtn = $("#abort");
+      const loadPolyfillBtn = $("#loadPolyfill");
+      const resourceListEl = $("#resourceList");
+      const resourceCountEl = $("#resourceCount");
+      const resourceMetaEl = $("#resourceMeta");
+      const resourceStatusEl = $("#resourceStatus");
+      const resourceUriEl = $("#resourceUri");
+      const resourceHintEl = $("#resourceHint");
+      const resourceOutputEl = $("#resourceOutput");
+      const resourceOutputCountEl = $("#resourceOutputCount");
+      const readResourceBtn = $("#readResource");
+
+      const server = createServer();
+
+      let activeTool = null;
+      let tools = [];
+      let resources = [];
+      let activeResource = null;
+      let abortController = null;
+
+      const encoder = new TextEncoder();
+
+      function setModelContextStatus() {
+        const hasModelContext = Boolean(navigator.modelContext);
+        mcStatusEl.textContent = hasModelContext ? "modelContext: ready" : "modelContext: missing";
+        mcDotEl.style.background = hasModelContext ? "var(--accent2)" : "var(--danger)";
+        mcDotEl.style.boxShadow = hasModelContext
+          ? "0 0 0 3px rgba(123,228,149,0.16)"
+          : "0 0 0 3px rgba(255,107,138,0.22)";
+      }
+
+      async function ensurePolyfill() {
+        if (navigator.modelContext) {
+          setModelContextStatus();
+          return;
+        }
+
+        await new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://unpkg.com/@mcp-b/global@latest/dist/index.iife.js";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Failed to load polyfill"));
+          document.head.appendChild(script);
+        });
+
+        setModelContextStatus();
+      }
+
+      function filterTool(name, tool) {
+        if (hideTestEl.checked && name === "test-tools-notification") {
+          return false;
+        }
+        return tool?.enabled !== false;
+      }
+
+      function updateToolList(list) {
+        tools = list;
+        toolListEl.textContent = "";
+        toolCountEl.textContent = `${tools.length} tools`;
+
+        if (!tools.length) {
+          const empty = document.createElement("div");
+          empty.className = "toolDesc";
+          empty.textContent = "No tools registered.";
+          toolListEl.appendChild(empty);
+          return;
+        }
+
+        for (const tool of tools) {
+          const item = document.createElement("div");
+          item.className = "toolItem";
+          item.dataset.name = tool.name;
+
+          const nameEl = document.createElement("div");
+          nameEl.className = "toolName";
+          nameEl.textContent = tool.name;
+
+          const descEl = document.createElement("div");
+          descEl.className = "toolDesc";
+          descEl.textContent = tool.description || "No description";
+
+          item.append(nameEl, descEl);
+          item.addEventListener("click", () => selectTool(tool.name));
+          toolListEl.appendChild(item);
+        }
+      }
+
+      function renderToolDetails(tool) {
+        activeTool = tool;
+        invokeStatusEl.textContent = tool ? `Selected: ${tool.name}` : "No tool selected";
+        metaEl.textContent = tool
+          ? `Name: ${tool.name} | Description: ${tool.description || "No description"}`
+          : "Pick a tool from the list.";
+        schemaEl.textContent = tool?.inputSchema
+          ? JSON.stringify(tool.inputSchema, null, 2)
+          : "{}";
+      }
+
+      function updateResourceList(resourceList, templateList) {
+        const combined = [
+          ...resourceList.map((resource) => ({
+            type: "static",
+            uri: resource.uri || resource.name,
+            name: resource.name || resource.title || resource.uri,
+            description: resource.description,
+            mimeType: resource.mimeType,
+          })),
+          ...templateList.map((resource) => ({
+            type: "template",
+            uri: resource.uriTemplate || resource.uri || resource.name,
+            name: resource.name || resource.title || resource.uriTemplate || resource.uri,
+            description: resource.description,
+            mimeType: resource.mimeType,
+          })),
+        ].filter((item) => item.uri);
+
+        resources = combined;
+        resourceListEl.textContent = "";
+        resourceCountEl.textContent = `${resources.length} resources`;
+
+        if (!resources.length) {
+          const empty = document.createElement("div");
+          empty.className = "toolDesc";
+          empty.textContent = "No resources registered.";
+          resourceListEl.appendChild(empty);
+          return;
+        }
+
+        for (const resource of resources) {
+          const item = document.createElement("div");
+          item.className = "resourceItem";
+          item.dataset.uri = resource.uri;
+
+          const header = document.createElement("div");
+          header.className = "itemHeader";
+
+          const nameEl = document.createElement("div");
+          nameEl.className = "toolName";
+          nameEl.textContent = resource.name || resource.uri;
+
+          const badge = document.createElement("span");
+          badge.className = "badge";
+          badge.textContent = resource.type === "template" ? "template" : "static";
+
+          header.append(nameEl, badge);
+
+          const descEl = document.createElement("div");
+          descEl.className = "toolDesc";
+          descEl.textContent = resource.description || resource.uri;
+
+          item.append(header, descEl);
+          item.addEventListener("click", () => selectResource(resource.uri));
+          resourceListEl.appendChild(item);
+        }
+      }
+
+      function renderResourceDetails(resource) {
+        activeResource = resource;
+        resourceStatusEl.textContent = resource
+          ? `Selected: ${resource.name || resource.uri}`
+          : "No resource selected";
+        resourceMetaEl.textContent = resource
+          ? `Name: ${resource.name || resource.uri} | URI: ${resource.uri} | MIME: ${resource.mimeType || "unknown"}`
+          : "Pick a resource from the list.";
+        if (resource) {
+          resourceUriEl.value = resource.uri;
+        }
+      }
+
+      function selectTool(name) {
+        const tool = tools.find((t) => t.name === name) || null;
+        renderToolDetails(tool);
+        [...toolListEl.querySelectorAll(".toolItem")].forEach((node) => {
+          node.classList.toggle("active", node.dataset.name === name);
+        });
+      }
+
+      function selectResource(uri) {
+        const resource = resources.find((r) => r.uri === uri) || null;
+        renderResourceDetails(resource);
+        [...resourceListEl.querySelectorAll(".resourceItem")].forEach((node) => {
+          node.classList.toggle("active", node.dataset.uri === uri);
+        });
+      }
+
+      function writeOutput(payload) {
+        const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+        outputEl.textContent = text;
+        outputCountEl.textContent = `${encoder.encode(text).byteLength} bytes`;
+      }
+
+      function writeResourceOutput(payload) {
+        const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+        resourceOutputEl.textContent = text;
+        resourceOutputCountEl.textContent = `${encoder.encode(text).byteLength} bytes`;
+      }
+
+      function resolveModelContextResources() {
+        const mc = navigator.modelContext;
+        const resources = typeof mc?.listResources === "function" ? mc.listResources() : [];
+        const templates = typeof mc?.listResourceTemplates === "function" ? mc.listResourceTemplates() : [];
+        return { resources, templates };
+      }
+
+      function buildToolListFromServer() {
+        const registered = server._registeredTools || {};
+        return Object.entries(registered)
+          .filter(([name, tool]) => filterTool(name, tool))
+          .map(([name, tool]) => ({
+            name,
+            description: tool.description,
+            inputSchema: tool.inputSchema,
+          }));
+      }
+
+      function buildResourceListFromServer() {
+        const registered = server._registeredResources || {};
+        const templates = server._registeredResourceTemplates || {};
+
+        const resources = Object.entries(registered)
+          .filter(([, resource]) => resource?.enabled !== false)
+          .map(([uri, resource]) => ({
+            uri,
+            name: resource.title || resource.name || uri,
+            description: resource.metadata?.description,
+            mimeType: resource.metadata?.mimeType,
+          }));
+
+        const resourceTemplates = Object.entries(templates)
+          .filter(([, resource]) => resource?.enabled !== false)
+          .map(([uriTemplate, resource]) => ({
+            uriTemplate,
+            name: resource.title || resource.name || uriTemplate,
+            description: resource.metadata?.description,
+            mimeType: resource.metadata?.mimeType,
+          }));
+
+        return { resources, resourceTemplates };
+      }
+
+      async function registerTools() {
+        runHintEl.textContent = "Registering tools...";
+        try {
+          await registerMcpServerToolsAsPageTools(server, {
+            filter: (name, tool) => filterTool(name, tool),
+            refreshOnToolsChanged: true,
+          });
+
+          const mcTools = navigator.modelContext.listTools();
+          const list = mcTools.length ? mcTools : buildToolListFromServer();
+          updateToolList(list);
+          runHintEl.textContent = "Tools registered.";
+        } catch (e) {
+          runHintEl.textContent = "Registration failed.";
+          writeOutput({ error: e?.message ?? String(e) });
+        }
+      }
+
+      async function registerResources() {
+        resourceHintEl.textContent = "Registering resources...";
+        try {
+          await registerMcpServerResourcesAsPageResources(server, {});
+
+          const { resources, templates } = resolveModelContextResources();
+          if (resources.length || templates.length) {
+            updateResourceList(resources, templates);
+          } else {
+            const fallback = buildResourceListFromServer();
+            updateResourceList(fallback.resources, fallback.resourceTemplates);
+          }
+
+          resourceHintEl.textContent = "Resources registered.";
+        } catch (e) {
+          resourceHintEl.textContent = "Registration failed.";
+          writeResourceOutput({ error: e?.message ?? String(e) });
+        }
+      }
+
+      async function registerAll() {
+        await ensurePolyfill();
+        await registerTools();
+        await registerResources();
+      }
+
+      async function runTool() {
+        if (!activeTool) {
+          runHintEl.textContent = "Select a tool first.";
+          return;
+        }
+
+        let params = {};
+        const raw = paramsEl.value.trim();
+        if (raw) {
+          try {
+            params = JSON.parse(raw);
+          } catch (e) {
+            runHintEl.textContent = "Invalid JSON input.";
+            return;
+          }
+        }
+
+        abortController = new AbortController();
+        runHintEl.textContent = "Running...";
+
+        const mcTools = navigator.modelContext.listTools();
+        const mcTool = mcTools.find((t) => t.name === activeTool.name);
+
+        try {
+          if (!navigator.modelContext?.executeTool) {
+            throw new Error("Tool executeTool() not available on navigator.modelContext");
+          }
+
+          const result = await navigator.modelContext.executeTool(mcTool.name, params, { signal: abortController.signal });
+          writeOutput(result);
+          runHintEl.textContent = "Done.";
+        } catch (e) {
+          writeOutput({ error: e?.message ?? String(e) });
+          runHintEl.textContent = "Error.";
+        }
+      }
+
+      async function readResource() {
+        const uri = resourceUriEl.value.trim();
+        if (!uri) {
+          resourceHintEl.textContent = "Enter a resource URI.";
+          return;
+        }
+
+        resourceHintEl.textContent = "Reading...";
+        try {
+          if (!navigator.modelContext?.readResource) {
+            throw new Error("readResource() not available on navigator.modelContext");
+          }
+
+          const result = await navigator.modelContext.readResource(uri);
+          writeResourceOutput(result);
+          resourceHintEl.textContent = "Done.";
+        } catch (e) {
+          writeResourceOutput({ error: e?.message ?? String(e) });
+          resourceHintEl.textContent = "Error.";
+        }
+      }
+
+      function abortRun() {
+        abortController?.abort();
+        runHintEl.textContent = "Aborted.";
+      }
+
+      registerBtn.addEventListener("click", registerAll);
+      loadPolyfillBtn.addEventListener("click", () => ensurePolyfill().catch((e) => {
+        writeOutput({ error: e?.message ?? String(e) });
+      }));
+      hideTestEl.addEventListener("change", registerAll);
+      runBtn.addEventListener("click", runTool);
+      abortBtn.addEventListener("click", abortRun);
+      readResourceBtn.addEventListener("click", readResource);
+      paramsEl.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+          e.preventDefault();
+          runTool();
+        }
+      });
+
+      resourceUriEl.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+          e.preventDefault();
+          readResource();
+        }
+      });
+
+      setModelContextStatus();
+      registerAll();
+    </script>
+  </body>
+</html>

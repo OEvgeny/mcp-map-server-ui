@@ -10,7 +10,7 @@ serve(app, { port: 3001 });
 const publicDir = "./out";
 
 function resolveId(id: string) {
-  return !['/', '/index.html'] .includes(id) ? join(publicDir, id) : './app/index.html';
+  return !['/', '/index.html'].includes(id) ? id.endsWith('webmcp.html') ? join('./app', id) : join(publicDir, id) : './app/index.html';
 }
 
 function readBlob(filePath: string) {

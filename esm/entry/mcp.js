@@ -1,5 +1,7 @@
 import { JSONRPCMessageSchema } from "@modelcontextprotocol/sdk/types.js";
 
+export { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
+
 // messageport-transport.js (ESM)
 //
 // A JSON-RPC transport over MessagePort (MessageChannel / postMessage transfer).

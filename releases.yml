@@ -1,4 +1,8 @@
 releases:
+  - version: 0.0.4
+    release-name: MCP UI ESM v. 0.0.4
+    description: |
+      MCP Server meets WebMCP.
   - version: 0.0.3
     release-name: MCP UI ESM v. 0.0.3
     description: |

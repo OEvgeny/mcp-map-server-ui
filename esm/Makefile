@@ -6,12 +6,14 @@ ASSETS := $(wildcard ../dist/*.html)
 SERVER_SRC := ../dist/server.js
 INDEX_SRC := entry/index.js
 MCP_SRC := entry/mcp.js
+WEBMCP_SRC := entry/webmcp.ts
 ZOD_SRC := module/zod.js
 
 # build targets
 SERVER_OUT := out/server.js
 INDEX_OUT := out/index.js
 MCP_OUT := out/mcp.js
+WEBMCP_OUT := out/webmcp.js
 ZOD_OUT := out/zod.js
 
 # build options
@@ -23,6 +25,7 @@ ALIAS_FS := --alias:fs/promises=./module/fs.js --alias:node:fs/promises=./module
             --alias:runtime:fs/promises=node:fs/promises --alias:runtime:url=node:url --external:node:fs/promises --external:node:url
 ALIAS_PATH := --alias:path=pathe --alias:node:path=pathe
 ALIAS_ZOD := --alias:zod/v4=./zod.js --external:./zod.js
+ALIAS_MCP := --alias:@modelcontextprotocol/sdk/types.js=./mcp.js --external:./mcp.js
 ALIAS_PROCESS := --alias:process=node:process --alias:node:process=./process.js --external:./process.js
 
 # deps specific options
@@ -67,11 +70,21 @@ $(INDEX_OUT): $(INDEX_SRC) $(MCP_OUT) $(SERVER_OUT)
 
 $(INDEX_OUT): Makefile
 
+$(WEBMCP_OUT): $(ZOD_OUT) $(MCP_OUT)
+$(WEBMCP_OUT): $(WEBMCP_SRC)
+	@mkdir -p out
+	esbuild $(WEBMCP_SRC) --outfile=$@ \
+		$(SHARED_FLAGS) \
+		$(ALIAS_MCP) \
+		$(ALIAS_ZOD)
+
+$(WEBMCP_OUT): Makefile
+
 assets:
 	mkdir -p out
 	cp $(ASSETS) out
 
-all: assets $(INDEX_OUT)
+all: assets $(INDEX_OUT) $(WEBMCP_OUT)
 
 clean:
 	rm -rf out/*

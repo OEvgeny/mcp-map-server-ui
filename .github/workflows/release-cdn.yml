@@ -245,6 +245,7 @@ jobs:
             ${CDN_BASE}index.js
             ${CDN_BASE}mcp.js
             ${CDN_BASE}server.js
+            ${CDN_BASE}webmcp.js
             ${CDN_BASE}zod.js
           \`\`\`
           EOF
