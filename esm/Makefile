@@ -25,7 +25,7 @@ ALIAS_FS := --alias:fs/promises=./module/fs.js --alias:node:fs/promises=./module
             --alias:runtime:fs/promises=node:fs/promises --alias:runtime:url=node:url --external:node:fs/promises --external:node:url
 ALIAS_PATH := --alias:path=pathe --alias:node:path=pathe
 ALIAS_SERVER := --alias:out-root/server.js=./server.js --external:./server.js
-ALIAS_ZOD := --alias:zod/v3=./zod.js --alias:zod/v4/classic=./zod.js --alias:zod/v4=./zod.js --external:./zod.js
+ALIAS_ZOD := --alias:zod/v3=./zod.js --alias:zod/v4/mini=./zod.js --alias:zod/v4=./zod.js --external:./zod.js
 ALIAS_PROCESS := --alias:process=node:process --alias:node:process=./process.js --external:./process.js
 
 # deps specific options

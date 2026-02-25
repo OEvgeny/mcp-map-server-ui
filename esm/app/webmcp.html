@@ -616,6 +616,8 @@
 
     const server = createServer();
 
+    Object.assign(window, { server });
+
     let activeTool = null;
     let tools = [];
     let resources = [];

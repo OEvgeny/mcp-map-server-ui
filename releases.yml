@@ -1,4 +1,8 @@
 releases:
+  - version: 0.0.6
+    release-name: MCP UI ESM v. 0.0.6
+    description: |
+      Bring the meta back.
   - version: 0.0.5
     release-name: MCP UI ESM v. 0.0.5
     description: |
