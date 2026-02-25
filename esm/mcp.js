@@ -1602,7 +1602,6 @@ function createMessageChannelPair() {
 export {
   MessagePortClientTransport,
   MessagePortServerTransport,
-  ToolListChangedNotificationSchema,
   createMessageChannelPair
 };
 //# sourceMappingURL=mcp.js.map

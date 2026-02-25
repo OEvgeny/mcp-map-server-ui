@@ -1,7 +1,6 @@
 // entry/index.js
 import { MessagePortServerTransport } from "./mcp.js";
-import { createServer as createMCPServer } from "./server.js";
-async function startMessageChannelServer(port) {
+async function startMessageChannelServer(port, createMCPServer) {
   await createMCPServer().connect(new MessagePortServerTransport(port));
 }
 export {

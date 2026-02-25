@@ -1,7 +1,7 @@
 {
   "version": 3,
   "sources": ["../entry/index.js"],
-  "sourcesContent": ["import { MessagePortServerTransport } from \"out-root/mcp.js\";\nimport { createServer as createMCPServer } from 'out-root/server.js';\n\nexport async function startMessageChannelServer(port) {\n  await createMCPServer().connect(new MessagePortServerTransport(port));\n}\n"],
-  "mappings": ";AAAA,SAAS,kCAAkC;AAC3C,SAAS,gBAAgB,uBAAuB;AAEhD,eAAsB,0BAA0B,MAAM;AACpD,QAAM,gBAAgB,EAAE,QAAQ,IAAI,2BAA2B,IAAI,CAAC;AACtE;",
+  "sourcesContent": ["import { MessagePortServerTransport } from \"out-root/mcp.js\";\n\nexport async function startMessageChannelServer(port, createMCPServer) {\n  await createMCPServer().connect(new MessagePortServerTransport(port));\n}\n"],
+  "mappings": ";AAAA,SAAS,kCAAkC;AAE3C,eAAsB,0BAA0B,MAAM,iBAAiB;AACrE,QAAM,gBAAgB,EAAE,QAAQ,IAAI,2BAA2B,IAAI,CAAC;AACtE;",
   "names": []
 }
