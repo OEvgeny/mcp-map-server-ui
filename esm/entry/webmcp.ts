@@ -93,16 +93,11 @@ type ModelContextResource = {
 };
 
 export type McpClientLike = {
-  listTools: () => ModelContextTool[];
-  listResources: () => ModelContextResource[];
-  listResourceTemplates: () => ModelContextResource[];
-  executeTool: (
-    name: string,
-    params: Record<string, unknown>,
-    options?: { signal?: AbortSignal },
-  ) => Promise<unknown>;
+  listTools: () => { tools: ModelContextTool[] };
+  listResources: () => { resources: ModelContextResource[]};
+  listResourceTemplates: () => { resourceTemplates: ModelContextResource[] };
   readResource: (
-    uri: string,
+    params: { uri: string },
     options?: { signal?: AbortSignal },
   ) => Promise<unknown>;
   /**
@@ -345,38 +340,25 @@ function createClientLike(
     listTools: () => {
       const modelContext = getModelContext();
       if (typeof modelContext.listTools === "function") {
-        return modelContext.listTools();
+        return { tools: modelContext.listTools() };
       }
-      return tools;
+      return { tools };
     },
     listResources: () => {
       const modelContext = getModelContext();
       if (typeof modelContext.listResources === "function") {
-        return modelContext.listResources();
+        return { resources: modelContext.listResources() };
       }
-      return resources;
+      return { resources };
     },
     listResourceTemplates: () => {
       const modelContext = getModelContext();
       if (typeof modelContext.listResourceTemplates === "function") {
-        return modelContext.listResourceTemplates();
+        return { resourceTemplates: modelContext.listResourceTemplates() };
       }
-      return templates;
+      return { resourceTemplates: templates };
     },
-    executeTool: async (name, params, options) => {
-      const modelContext = getModelContext();
-      if (typeof modelContext.executeTool === "function") {
-        return modelContext.executeTool(name, params, options);
-      }
-
-      const tool = tools.find((entry) => entry.name === name);
-      if (!tool) {
-        throw new Error(`Tool not found: ${name}`);
-      }
-
-      return tool.execute(params, options);
-    },
-    readResource: async (uri, options) => {
+    readResource: async ({ uri }, options) => {
       const modelContext = getModelContext();
       if (typeof modelContext.readResource === "function") {
         return modelContext.readResource(uri, options);
@@ -391,8 +373,8 @@ function createClientLike(
     },
     request: async (request, resultSchema, options) => {
       const modelContext = getModelContext();
-      if (typeof modelContext.request === "function") {
-        return modelContext.request(request, resultSchema, options);
+      if (typeof modelContext.callTool === "function") {
+        return modelContext.callTool(request.params);
       }
 
       if (request.method === "tools/call") {
