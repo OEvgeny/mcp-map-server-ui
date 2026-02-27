@@ -239,7 +239,7 @@ export function createServer(): McpServer {
     async (): Promise<ReadResourceResult> => {
       try {
         const html = await fs.readFile(
-          path.join(DIST_DIR, "mcp-app.html"),
+          path.join(DIST_DIR, "apps/globe/mcp-app.html"),
           "utf-8",
         );
         return {
@@ -279,7 +279,7 @@ export function createServer(): McpServer {
     async (): Promise<ReadResourceResult> => {
       try {
         const html = await fs.readFile(
-          path.join(DIST_DIR, "weather-app.html"),
+          path.join(DIST_DIR, "apps/weather/weather-app.html"),
           "utf-8",
         );
         return {
@@ -308,7 +308,7 @@ export function createServer(): McpServer {
     async (): Promise<ReadResourceResult> => {
       try {
         const html = await fs.readFile(
-          path.join(DIST_DIR, "clock-app.html"),
+          path.join(DIST_DIR, "apps/clock/clock-app.html"),
           "utf-8",
         );
         return {
