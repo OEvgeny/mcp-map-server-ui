@@ -148,6 +148,14 @@ export async function startStdioServer(
   await createServer().connect(new StdioServerTransport());
 }
 
+process.on("unhandledRejection", (reason) => {
+  console.error("[UNHANDLED REJECTION]", reason instanceof Error ? reason.stack ?? reason.message : reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[UNCAUGHT EXCEPTION]", err.stack ?? err.message);
+});
+
 async function main() {
   console.log("Starting MCP Map Server...");
   console.log("Node version:", process.version);

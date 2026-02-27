@@ -237,21 +237,26 @@ export function createServer(): McpServer {
     RESOURCE_URI,
     { mimeType: RESOURCE_MIME_TYPE },
     async (): Promise<ReadResourceResult> => {
-      const html = await fs.readFile(
-        path.join(DIST_DIR, "mcp-app.html"),
-        "utf-8",
-      );
-      return {
-        contents: [
-          // _meta must be on the content item, not the resource metadata
-          {
-            uri: RESOURCE_URI,
-            mimeType: RESOURCE_MIME_TYPE,
-            text: html,
-            _meta: cspMeta,
-          },
-        ],
-      };
+      try {
+        const html = await fs.readFile(
+          path.join(DIST_DIR, "mcp-app.html"),
+          "utf-8",
+        );
+        return {
+          contents: [
+            // _meta must be on the content item, not the resource metadata
+            {
+              uri: RESOURCE_URI,
+              mimeType: RESOURCE_MIME_TYPE,
+              text: html,
+              _meta: cspMeta,
+            },
+          ],
+        };
+      } catch (err) {
+        log.error("resource:mcp-app.html", err);
+        throw err;
+      }
     },
   );
 
@@ -272,20 +277,25 @@ export function createServer(): McpServer {
     WEATHER_RESOURCE_URI,
     { mimeType: RESOURCE_MIME_TYPE },
     async (): Promise<ReadResourceResult> => {
-      const html = await fs.readFile(
-        path.join(DIST_DIR, "weather-app.html"),
-        "utf-8",
-      );
-      return {
-        contents: [
-          {
-            uri: WEATHER_RESOURCE_URI,
-            mimeType: RESOURCE_MIME_TYPE,
-            text: html,
-            _meta: weatherCspMeta,
-          },
-        ],
-      };
+      try {
+        const html = await fs.readFile(
+          path.join(DIST_DIR, "weather-app.html"),
+          "utf-8",
+        );
+        return {
+          contents: [
+            {
+              uri: WEATHER_RESOURCE_URI,
+              mimeType: RESOURCE_MIME_TYPE,
+              text: html,
+              _meta: weatherCspMeta,
+            },
+          ],
+        };
+      } catch (err) {
+        log.error("resource:weather-app.html", err);
+        throw err;
+      }
     },
   );
 
@@ -296,19 +306,24 @@ export function createServer(): McpServer {
     CLOCK_RESOURCE_URI,
     { mimeType: RESOURCE_MIME_TYPE },
     async (): Promise<ReadResourceResult> => {
-      const html = await fs.readFile(
-        path.join(DIST_DIR, "clock-app.html"),
-        "utf-8",
-      );
-      return {
-        contents: [
-          {
-            uri: CLOCK_RESOURCE_URI,
-            mimeType: RESOURCE_MIME_TYPE,
-            text: html,
-          },
-        ],
-      };
+      try {
+        const html = await fs.readFile(
+          path.join(DIST_DIR, "clock-app.html"),
+          "utf-8",
+        );
+        return {
+          contents: [
+            {
+              uri: CLOCK_RESOURCE_URI,
+              mimeType: RESOURCE_MIME_TYPE,
+              text: html,
+            },
+          ],
+        };
+      } catch (err) {
+        log.error("resource:clock-app.html", err);
+        throw err;
+      }
     },
   );
 
