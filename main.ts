@@ -91,10 +91,13 @@ export async function startStreamableHTTPServer(
       },
     });
 
-    // Clean up session when transport closes
+    // Clean up session when transport closes.
+    // Guard against re-entry: check sessions.has() before deleting so that
+    // server.close() → transport.close() → onclose doesn't recurse infinitely.
     transport.onclose = () => {
-      if (transport.sessionId) {
-        sessions.delete(transport.sessionId);
+      const id = transport.sessionId;
+      if (id && sessions.has(id)) {
+        sessions.delete(id);
         server.close().catch(() => {});
       }
     };
