@@ -56,6 +56,8 @@ export async function startStreamableHTTPServer(
 
   app.all("/mcp", async (req: Request, res: Response) => {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    const method = (req.body as { method?: string })?.method ?? "-";
+    console.log(`[REQ] ${req.method} session=${sessionId ?? "none"} method=${method} known=${sessionId ? sessions.has(sessionId) : false}`);
 
     // Route to existing session (GET SSE stream or subsequent POST requests)
     if (sessionId && sessions.has(sessionId)) {
@@ -63,7 +65,7 @@ export async function startStreamableHTTPServer(
       try {
         await session.transport.handleRequest(req, res, req.body);
       } catch (error) {
-        console.error("MCP error (existing session):", error);
+        console.error("[ERROR] existing session:", error);
         if (!res.headersSent) {
           res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "Internal server error" }, id: null });
         }
@@ -75,7 +77,17 @@ export async function startStreamableHTTPServer(
     // is only available after session initialization (per MCP spec, 405 = no SSE).
     // The SDK client handles 405 gracefully and falls back to POST-only mode.
     if (req.method === "GET") {
+      console.log("[REQ] GET with no/unknown session → 405");
       res.status(405).json({ error: "Method Not Allowed: GET requires a valid Mcp-Session-Id" });
+      return;
+    }
+
+    // POST with an unrecognised session ID means the server restarted and lost
+    // the session. Return 404 so the client re-initialises instead of treating
+    // the request as a new initialize call.
+    if (sessionId && !sessions.has(sessionId)) {
+      console.log(`[REQ] POST with unknown session ${sessionId} → 404 (server restarted?)`);
+      res.status(404).json({ jsonrpc: "2.0", error: { code: -32001, message: "Session not found — please re-initialise" }, id: null });
       return;
     }
 
@@ -108,7 +120,7 @@ export async function startStreamableHTTPServer(
       await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
     } catch (error) {
-      console.error("MCP error (new session):", error);
+      console.error("[ERROR] new session:", error);
       if (!res.headersSent) {
         res.status(500).json({
           jsonrpc: "2.0",
