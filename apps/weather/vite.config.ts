@@ -1,8 +1,6 @@
 import { defineConfig } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
 
-const INPUT = process.env.INPUT || "apps/globe/mcp-app.html";
-
 const isDevelopment = process.env.NODE_ENV === "development";
 
 export default defineConfig({
@@ -12,7 +10,7 @@ export default defineConfig({
     cssMinify: !isDevelopment,
     minify: !isDevelopment,
     rollupOptions: {
-      input: INPUT,
+      input: "weather-app.html",
     },
     outDir: "dist",
     emptyOutDir: false,

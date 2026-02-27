@@ -1,0 +1,96 @@
+# Deploy Clock App to Azure Web App
+
+name: Deploy Clock App to Azure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/clock/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js version
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22.x'
+
+      - name: Install and build
+        working-directory: apps/clock
+        run: |
+          npm install
+          npm run build
+
+      - name: Create minimal deployment package
+        working-directory: apps/clock
+        run: |
+          mkdir -p deploy/dist
+          cp -r dist/* deploy/dist/
+
+          cat > deploy/package.json << 'EOF'
+          {
+            "name": "mcp-clock-server",
+            "version": "1.0.0",
+            "type": "module",
+            "scripts": {
+              "start": "node dist/index.js"
+            },
+            "dependencies": {
+              "@modelcontextprotocol/ext-apps": "^1.0.0",
+              "@modelcontextprotocol/sdk": "^1.24.0",
+              "cors": "^2.8.5",
+              "express": "^5.1.0",
+              "zod": "^4.1.13"
+            }
+          }
+          EOF
+
+          cd deploy
+          npm install --production --no-optional --ignore-scripts
+          cd ..
+          zip -r release.zip deploy/
+
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
+        with:
+          name: clock-app
+          path: apps/clock/release.zip
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: clock-app
+
+      - name: Unzip artifact for deployment
+        run: unzip release.zip
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_CLOCK }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_CLOCK }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_CLOCK }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'MCP-Clock-App'
+          slot-name: 'Production'
+          package: ./deploy
