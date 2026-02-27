@@ -1,0 +1,96 @@
+# Deploy Weather App to Azure Web App
+
+name: Deploy Weather App to Azure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/weather/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js version
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22.x'
+
+      - name: Install and build
+        working-directory: apps/weather
+        run: |
+          npm install
+          npm run build
+
+      - name: Create minimal deployment package
+        working-directory: apps/weather
+        run: |
+          mkdir -p deploy/dist
+          cp -r dist/* deploy/dist/
+
+          cat > deploy/package.json << 'EOF'
+          {
+            "name": "mcp-weather-server",
+            "version": "1.0.0",
+            "type": "module",
+            "scripts": {
+              "start": "node dist/index.js"
+            },
+            "dependencies": {
+              "@modelcontextprotocol/ext-apps": "^1.0.0",
+              "@modelcontextprotocol/sdk": "^1.24.0",
+              "cors": "^2.8.5",
+              "express": "^5.1.0",
+              "zod": "^4.1.13"
+            }
+          }
+          EOF
+
+          cd deploy
+          npm install --production --no-optional --ignore-scripts
+          cd ..
+          zip -r release.zip deploy/
+
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
+        with:
+          name: weather-app
+          path: apps/weather/release.zip
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: weather-app
+
+      - name: Unzip artifact for deployment
+        run: unzip release.zip
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_918E44C971144108B799690C6FB670A6 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_615C1A3F4C4B47BFAD633ADD479842EC }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_7D23C9E10CE54BC3B6BA6BE25CBDBE0C }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'MCP-Weather-App'
+          slot-name: 'Production'
+          package: ./deploy
