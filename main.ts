@@ -10,20 +10,35 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import cors from "cors";
 import type { Request, Response } from "express";
+import { randomUUID } from "crypto";
 import { createServer } from "./server.js";
 
+interface Session {
+  transport: StreamableHTTPServerTransport;
+  server: McpServer;
+}
+
 /**
- * Starts an MCP server with Streamable HTTP transport in stateless mode.
+ * Starts an MCP server with Streamable HTTP transport in stateful session mode.
+ * Each MCP client session gets its own persistent server+transport instance,
+ * allowing server-initiated notifications (like resources/list_changed) to be
+ * pushed to the client's GET SSE stream.
  *
- * @param createServer - Factory function that creates a new McpServer instance per request.
+ * @param createServer - Factory function that creates a new McpServer instance per session.
  */
 export async function startStreamableHTTPServer(
   createServer: () => McpServer,
 ): Promise<void> {
   const port = parseInt(process.env.PORT ?? "3001", 10);
 
+  // Session store: maps session ID → { transport, server }
+  const sessions = new Map<string, Session>();
+
   const app = createMcpExpressApp({ host: "0.0.0.0" });
-  app.use(cors());
+  // Expose mcp-session-id header so browser clients on different origins can read it
+  app.use(cors({
+    exposedHeaders: ["mcp-session-id"],
+  }));
 
   // Health check endpoint for Azure
   app.get("/", (req: Request, res: Response) => {
@@ -40,21 +55,55 @@ export async function startStreamableHTTPServer(
   });
 
   app.all("/mcp", async (req: Request, res: Response) => {
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+
+    // Route to existing session (GET SSE stream or subsequent POST requests)
+    if (sessionId && sessions.has(sessionId)) {
+      const session = sessions.get(sessionId)!;
+      try {
+        await session.transport.handleRequest(req, res, req.body);
+      } catch (error) {
+        console.error("MCP error (existing session):", error);
+        if (!res.headersSent) {
+          res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "Internal server error" }, id: null });
+        }
+      }
+      return;
+    }
+
+    // GET without a valid session ID: return 405 so the client knows GET SSE
+    // is only available after session initialization (per MCP spec, 405 = no SSE).
+    // The SDK client handles 405 gracefully and falls back to POST-only mode.
+    if (req.method === "GET") {
+      res.status(405).json({ error: "Method Not Allowed: GET requires a valid Mcp-Session-Id" });
+      return;
+    }
+
+    // New session: create a fresh server + transport (POST initialize)
     const server = createServer();
     const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
+      sessionIdGenerator: () => randomUUID(),
+      // Store session immediately when the ID is generated (before response is sent),
+      // to avoid a race condition where the client sends the next request
+      // (notifications/initialized) before we've stored the session.
+      onsessioninitialized: (newSessionId) => {
+        sessions.set(newSessionId, { transport, server });
+      },
     });
 
-    res.on("close", () => {
-      transport.close().catch(() => {});
-      server.close().catch(() => {});
-    });
+    // Clean up session when transport closes
+    transport.onclose = () => {
+      if (transport.sessionId) {
+        sessions.delete(transport.sessionId);
+        server.close().catch(() => {});
+      }
+    };
 
     try {
       await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
     } catch (error) {
-      console.error("MCP error:", error);
+      console.error("MCP error (new session):", error);
       if (!res.headersSent) {
         res.status(500).json({
           jsonrpc: "2.0",

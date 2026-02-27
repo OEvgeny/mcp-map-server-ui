@@ -21,12 +21,25 @@ import {
 } from "@modelcontextprotocol/ext-apps/server";
 import { randomUUID } from "crypto";
 
+// Server-side logger — output goes to the terminal / /tmp/mcp-server.log
+const log = {
+  tool: (name: string, input: Record<string, unknown>) =>
+    console.log(`[TOOL] ${name} called`, Object.keys(input).length ? JSON.stringify(input) : ""),
+  done: (name: string, summary?: string) =>
+    console.log(`[TOOL] ${name} done${summary ? ` — ${summary}` : ""}`),
+  notify: (method: string) =>
+    console.log(`[NOTIFY] sent ${method}`),
+  tick: (i: number, total: number) =>
+    console.log(`[CLOCK] tick ${i}/${total}`),
+};
+
 // Works both from source (server.ts) and compiled (dist/server.js)
 const DIST_DIR = import.meta.filename.endsWith(".ts")
   ? path.join(import.meta.dirname, "dist")
   : import.meta.dirname;
 const RESOURCE_URI = "ui://cesium-map/mcp-app.html";
 const WEATHER_RESOURCE_URI = "ui://weather-dashboard/weather-app.html";
+const CLOCK_RESOURCE_URI = "ui://clock-timer/clock-app.html";
 
 // Nominatim API response type
 interface NominatimResult {
@@ -188,6 +201,9 @@ export function createServer(): McpServer {
         tools: {
           listChanged: true, // Enable dynamic tool list updates
         },
+        resources: {
+          listChanged: true, // Enable dynamic resource list updates
+        },
       },
     }
   );
@@ -271,6 +287,29 @@ export function createServer(): McpServer {
     },
   );
 
+  // Register the Clock Timer resource (no external CSP needed)
+  registerAppResource(
+    server,
+    CLOCK_RESOURCE_URI,
+    CLOCK_RESOURCE_URI,
+    { mimeType: RESOURCE_MIME_TYPE },
+    async (): Promise<ReadResourceResult> => {
+      const html = await fs.readFile(
+        path.join(DIST_DIR, "clock-app.html"),
+        "utf-8",
+      );
+      return {
+        contents: [
+          {
+            uri: CLOCK_RESOURCE_URI,
+            mimeType: RESOURCE_MIME_TYPE,
+            text: html,
+          },
+        ],
+      };
+    },
+  );
+
   // show-map tool - displays the CesiumJS globe
   // Default bounding box: London area
   registerAppTool(
@@ -308,17 +347,20 @@ export function createServer(): McpServer {
       },
       _meta: { [RESOURCE_URI_META_KEY]: RESOURCE_URI },
     },
-    async ({ west, south, east, north, label }): Promise<CallToolResult> => ({
-      content: [
-        {
-          type: "text",
-          text: `Displaying globe at: W:${west.toFixed(4)}, S:${south.toFixed(4)}, E:${east.toFixed(4)}, N:${north.toFixed(4)}${label ? ` (${label})` : ""}`,
-        },
-      ],
-      _meta: {
-        viewUUID: randomUUID(),
-      },
-    }),
+    async ({ west, south, east, north, label }): Promise<CallToolResult> => {
+      log.tool("show-map", { west, south, east, north, label });
+      const result = {
+        content: [
+          {
+            type: "text" as const,
+            text: `Displaying globe at: W:${west.toFixed(4)}, S:${south.toFixed(4)}, E:${east.toFixed(4)}, N:${north.toFixed(4)}${label ? ` (${label})` : ""}`,
+          },
+        ],
+        _meta: { viewUUID: randomUUID() },
+      };
+      log.done("show-map", label ?? `${west.toFixed(2)},${south.toFixed(2)}`);
+      return result;
+    },
   );
 
   // shuffle-cities tool - randomly selects a city and displays it on the map
@@ -332,13 +374,14 @@ export function createServer(): McpServer {
       _meta: { [RESOURCE_URI_META_KEY]: RESOURCE_URI },
     },
     async (): Promise<CallToolResult> => {
+      log.tool("shuffle-cities", {});
       // Pick a random city
       const city = CITIES[Math.floor(Math.random() * CITIES.length)];
 
-      return {
+      const result = {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: `Displaying ${city.name}: W:${city.west.toFixed(4)}, S:${city.south.toFixed(4)}, E:${city.east.toFixed(4)}, N:${city.north.toFixed(4)}`,
           },
         ],
@@ -353,6 +396,8 @@ export function createServer(): McpServer {
           },
         },
       };
+      log.done("shuffle-cities", city.name);
+      return result;
     },
   );
 
@@ -387,6 +432,7 @@ export function createServer(): McpServer {
       _meta: { [RESOURCE_URI_META_KEY]: WEATHER_RESOURCE_URI },
     },
     async ({ location, latitude, longitude }): Promise<CallToolResult> => {
+      log.tool("show-weather", { location, latitude, longitude });
       try {
         let lat: number;
         let lon: number;
@@ -453,6 +499,7 @@ export function createServer(): McpServer {
           })),
         };
 
+        log.done("show-weather", `${locationName} ${formattedData.current.temperature.toFixed(1)}°C`);
         return {
           content: [
             {
@@ -504,6 +551,7 @@ export function createServer(): McpServer {
       },
     },
     async ({ locations }): Promise<CallToolResult> => {
+      log.tool("compare-weather", { locations });
       try {
         // Validate location count
         if (locations.length < 2 || locations.length > 4) {
@@ -563,6 +611,7 @@ export function createServer(): McpServer {
         // Wait for all weather data to be fetched
         const weatherDataArray = await Promise.all(weatherPromises);
 
+        log.done("compare-weather", locations.join(", "));
         // Create summary text
         const summaryText = weatherDataArray
           .map(
@@ -616,6 +665,7 @@ export function createServer(): McpServer {
       },
     },
     async ({ query }): Promise<CallToolResult> => {
+      log.tool("geocode", { query });
       try {
         const results = await geocodeWithNominatim(query);
 
@@ -648,6 +698,7 @@ export function createServer(): McpServer {
           )
           .join("\n\n");
 
+        log.done("geocode", `${results.length} result(s) for "${query}"`);
         return {
           content: [{ type: "text", text: textContent }],
         };
@@ -808,6 +859,147 @@ export function createServer(): McpServer {
     }
   );
 
+  // show-clock tool - opens the clock timer UI app
+  registerAppTool(
+    server,
+    "show-clock",
+    {
+      title: "Show Clock",
+      description:
+        "Display an interactive clock timer that ticks for a configurable number of ticks at a set interval. Uses MCP progress notifications to stream each tick to the UI in real time. The user can also adjust settings and start/stop the clock from the UI.",
+      inputSchema: {
+        ticks: z
+          .number()
+          .int()
+          .min(1)
+          .max(30)
+          .optional()
+          .default(10)
+          .describe("Number of ticks to count (1–30, default 10)"),
+        intervalSeconds: z
+          .number()
+          .min(0.1)
+          .max(30)
+          .optional()
+          .default(1)
+          .describe("Seconds between each tick (0.1–30, default 1)"),
+      },
+      _meta: { [RESOURCE_URI_META_KEY]: CLOCK_RESOURCE_URI },
+    },
+    async ({ ticks, intervalSeconds }): Promise<CallToolResult> => {
+      log.tool("show-clock", { ticks, intervalSeconds });
+      const result = {
+        content: [
+          {
+            type: "text" as const,
+            text: `Showing clock timer: ${ticks} tick${ticks !== 1 ? "s" : ""} at ${intervalSeconds}s intervals. Click "Start Clock" in the UI to begin.`,
+          },
+        ],
+        _meta: { ticks, intervalSeconds },
+      };
+      log.done("show-clock", `${ticks} ticks @ ${intervalSeconds}s`);
+      return result;
+    },
+  );
+
+  // run-clock tool - server-side engine that sends progress notifications for each tick.
+  // Called by the clock app UI (not the LLM) via app.callServerTool with an onprogress callback.
+  server.registerTool(
+    "run-clock",
+    {
+      title: "Run Clock",
+      description:
+        "Execute the clock timer: tick N times with a given interval, sending a notifications/progress message for each tick. Called by the show-clock UI app — pass a progressToken in _meta to receive real-time tick notifications.",
+      inputSchema: {
+        ticks: z
+          .number()
+          .int()
+          .min(1)
+          .max(30)
+          .describe("Number of ticks to perform (1–30)"),
+        intervalMs: z
+          .number()
+          .min(100)
+          .max(30000)
+          .describe("Milliseconds to wait between ticks (100–30000)"),
+      },
+    },
+    async ({ ticks, intervalMs }, extra): Promise<CallToolResult> => {
+      const clampedTicks = Math.min(30, Math.max(1, ticks));
+      const progressToken = extra._meta?.progressToken;
+      log.tool("run-clock", { ticks: clampedTicks, intervalMs, hasProgressToken: progressToken !== undefined });
+
+      for (let i = 1; i <= clampedTicks; i++) {
+        // Wait for the interval before each tick
+        await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
+
+        // Check if the request was cancelled
+        if (extra.signal?.aborted) {
+          console.log(`[CLOCK] aborted after ${i - 1}/${clampedTicks} ticks`);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Clock stopped after ${i - 1} of ${clampedTicks} ticks.`,
+              },
+            ],
+          };
+        }
+
+        // Send progress notification if a token was provided
+        if (progressToken !== undefined) {
+          log.tick(i, clampedTicks);
+          await extra.sendNotification({
+            method: "notifications/progress",
+            params: {
+              progressToken,
+              progress: i,
+              total: clampedTicks,
+              message: `Tick ${i} of ${clampedTicks}`,
+            },
+          });
+        }
+      }
+
+      log.done("run-clock", `${clampedTicks} ticks completed`);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Clock completed: ${clampedTicks} tick${clampedTicks !== 1 ? "s" : ""} at ${intervalMs}ms intervals.`,
+          },
+        ],
+      };
+    },
+  );
+
+  // Test tool to demonstrate resources/list_changed notification
+  server.registerTool(
+    "test-resources-notification",
+    {
+      title: "Test Resources Notification",
+      description:
+        "Triggers a resources/list_changed notification to demonstrate dynamic resource list updates. Visible on the GET /mcp SSE stream.",
+      inputSchema: {},
+    },
+    async (): Promise<CallToolResult> => {
+      log.tool("test-resources-notification", {});
+      await server.server.notification({
+        method: "notifications/resources/list_changed",
+        params: {},
+      });
+      log.notify("notifications/resources/list_changed");
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Sent resources/list_changed notification. Check the GET /mcp SSE stream.",
+          },
+        ],
+      };
+    }
+  );
+
   // Test tool to demonstrate tools/list_changed notification
   // In a real scenario, this would be triggered when tools are actually added/removed dynamically
   server.registerTool(
@@ -819,12 +1011,12 @@ export function createServer(): McpServer {
       inputSchema: {},
     },
     async (): Promise<CallToolResult> => {
-      // Send notification to all connected clients using the underlying server
+      log.tool("test-tools-notification", {});
       await server.server.notification({
         method: "notifications/tools/list_changed",
         params: {},
       });
-
+      log.notify("notifications/tools/list_changed");
       return {
         content: [
           {
