@@ -92,13 +92,15 @@ export async function startStreamableHTTPServer(
     });
 
     // Clean up session when transport closes.
-    // Guard against re-entry: check sessions.has() before deleting so that
-    // server.close() → transport.close() → onclose doesn't recurse infinitely.
+    // Do NOT call server.close() here — Protocol already runs _onclose() via its
+    // own wrapper (set in connect()) which clears handlers and rejects pending
+    // requests. Calling server.close() triggers a second transport.close() →
+    // webStandardTransport.close() → onclose() cycle that causes cascading
+    // promise rejections and a RangeError: Maximum call stack size exceeded.
     transport.onclose = () => {
       const id = transport.sessionId;
-      if (id && sessions.has(id)) {
+      if (id) {
         sessions.delete(id);
-        server.close().catch(() => {});
       }
     };
 
