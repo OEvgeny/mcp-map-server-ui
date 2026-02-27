@@ -27,6 +27,8 @@ const log = {
     console.log(`[TOOL] ${name} called`, Object.keys(input).length ? JSON.stringify(input) : ""),
   done: (name: string, summary?: string) =>
     console.log(`[TOOL] ${name} done${summary ? ` — ${summary}` : ""}`),
+  error: (name: string, err: unknown) =>
+    console.error(`[ERROR] ${name} failed:`, err instanceof Error ? err.stack ?? err.message : err),
   notify: (method: string) =>
     console.log(`[NOTIFY] sent ${method}`),
   tick: (i: number, total: number) =>
@@ -349,17 +351,22 @@ export function createServer(): McpServer {
     },
     async ({ west, south, east, north, label }): Promise<CallToolResult> => {
       log.tool("show-map", { west, south, east, north, label });
-      const result = {
-        content: [
-          {
-            type: "text" as const,
-            text: `Displaying globe at: W:${west.toFixed(4)}, S:${south.toFixed(4)}, E:${east.toFixed(4)}, N:${north.toFixed(4)}${label ? ` (${label})` : ""}`,
-          },
-        ],
-        _meta: { viewUUID: randomUUID() },
-      };
-      log.done("show-map", label ?? `${west.toFixed(2)},${south.toFixed(2)}`);
-      return result;
+      try {
+        const result = {
+          content: [
+            {
+              type: "text" as const,
+              text: `Displaying globe at: W:${west.toFixed(4)}, S:${south.toFixed(4)}, E:${east.toFixed(4)}, N:${north.toFixed(4)}${label ? ` (${label})` : ""}`,
+            },
+          ],
+          _meta: { viewUUID: randomUUID() },
+        };
+        log.done("show-map", label ?? `${west.toFixed(2)},${south.toFixed(2)}`);
+        return result;
+      } catch (err) {
+        log.error("show-map", err);
+        throw err;
+      }
     },
   );
 
@@ -375,29 +382,34 @@ export function createServer(): McpServer {
     },
     async (): Promise<CallToolResult> => {
       log.tool("shuffle-cities", {});
-      // Pick a random city
-      const city = CITIES[Math.floor(Math.random() * CITIES.length)];
+      try {
+        // Pick a random city
+        const city = CITIES[Math.floor(Math.random() * CITIES.length)];
 
-      const result = {
-        content: [
-          {
-            type: "text" as const,
-            text: `Displaying ${city.name}: W:${city.west.toFixed(4)}, S:${city.south.toFixed(4)}, E:${city.east.toFixed(4)}, N:${city.north.toFixed(4)}`,
+        const result = {
+          content: [
+            {
+              type: "text" as const,
+              text: `Displaying ${city.name}: W:${city.west.toFixed(4)}, S:${city.south.toFixed(4)}, E:${city.east.toFixed(4)}, N:${city.north.toFixed(4)}`,
+            },
+          ],
+          _meta: {
+            viewUUID: randomUUID(),
+            city: {
+              name: city.name,
+              west: city.west,
+              south: city.south,
+              east: city.east,
+              north: city.north,
+            },
           },
-        ],
-        _meta: {
-          viewUUID: randomUUID(),
-          city: {
-            name: city.name,
-            west: city.west,
-            south: city.south,
-            east: city.east,
-            north: city.north,
-          },
-        },
-      };
-      log.done("shuffle-cities", city.name);
-      return result;
+        };
+        log.done("shuffle-cities", city.name);
+        return result;
+      } catch (err) {
+        log.error("shuffle-cities", err);
+        throw err;
+      }
     },
   );
 
@@ -513,6 +525,7 @@ export function createServer(): McpServer {
           },
         };
       } catch (error) {
+        log.error("show-weather", error);
         return {
           content: [
             {
@@ -636,6 +649,7 @@ export function createServer(): McpServer {
           },
         };
       } catch (error) {
+        log.error("compare-weather", error);
         return {
           content: [
             {
@@ -703,6 +717,7 @@ export function createServer(): McpServer {
           content: [{ type: "text", text: textContent }],
         };
       } catch (error) {
+        log.error("geocode", error);
         return {
           content: [
             {
@@ -738,6 +753,7 @@ export function createServer(): McpServer {
       },
     },
     async ({ location, latitude, longitude }): Promise<CallToolResult> => {
+      try {
       if (!location && (!latitude || !longitude)) {
         return {
           content: [
@@ -856,6 +872,10 @@ export function createServer(): McpServer {
           updates,
         },
       };
+      } catch (err) {
+        log.error("uzir-weather-stream", err);
+        throw err;
+      }
     }
   );
 
@@ -888,17 +908,22 @@ export function createServer(): McpServer {
     },
     async ({ ticks, intervalSeconds }): Promise<CallToolResult> => {
       log.tool("show-clock", { ticks, intervalSeconds });
-      const result = {
-        content: [
-          {
-            type: "text" as const,
-            text: `Showing clock timer: ${ticks} tick${ticks !== 1 ? "s" : ""} at ${intervalSeconds}s intervals. Click "Start Clock" in the UI to begin.`,
-          },
-        ],
-        _meta: { ticks, intervalSeconds },
-      };
-      log.done("show-clock", `${ticks} ticks @ ${intervalSeconds}s`);
-      return result;
+      try {
+        const result = {
+          content: [
+            {
+              type: "text" as const,
+              text: `Showing clock timer: ${ticks} tick${ticks !== 1 ? "s" : ""} at ${intervalSeconds}s intervals. Click "Start Clock" in the UI to begin.`,
+            },
+          ],
+          _meta: { ticks, intervalSeconds },
+        };
+        log.done("show-clock", `${ticks} ticks @ ${intervalSeconds}s`);
+        return result;
+      } catch (err) {
+        log.error("show-clock", err);
+        throw err;
+      }
     },
   );
 
@@ -928,7 +953,7 @@ export function createServer(): McpServer {
       const clampedTicks = Math.min(30, Math.max(1, ticks));
       const progressToken = extra._meta?.progressToken;
       log.tool("run-clock", { ticks: clampedTicks, intervalMs, hasProgressToken: progressToken !== undefined });
-
+      try {
       for (let i = 1; i <= clampedTicks; i++) {
         // Wait for the interval before each tick
         await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
@@ -970,6 +995,10 @@ export function createServer(): McpServer {
           },
         ],
       };
+      } catch (err) {
+        log.error("run-clock", err);
+        throw err;
+      }
     },
   );
 
@@ -984,19 +1013,24 @@ export function createServer(): McpServer {
     },
     async (): Promise<CallToolResult> => {
       log.tool("test-resources-notification", {});
-      await server.server.notification({
-        method: "notifications/resources/list_changed",
-        params: {},
-      });
-      log.notify("notifications/resources/list_changed");
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Sent resources/list_changed notification. Check the GET /mcp SSE stream.",
-          },
-        ],
-      };
+      try {
+        await server.server.notification({
+          method: "notifications/resources/list_changed",
+          params: {},
+        });
+        log.notify("notifications/resources/list_changed");
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Sent resources/list_changed notification. Check the GET /mcp SSE stream.",
+            },
+          ],
+        };
+      } catch (err) {
+        log.error("test-resources-notification", err);
+        throw err;
+      }
     }
   );
 
@@ -1012,19 +1046,24 @@ export function createServer(): McpServer {
     },
     async (): Promise<CallToolResult> => {
       log.tool("test-tools-notification", {});
-      await server.server.notification({
-        method: "notifications/tools/list_changed",
-        params: {},
-      });
-      log.notify("notifications/tools/list_changed");
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Sent tools/list_changed notification to all connected clients. Apps should respond by showing a notification.",
-          },
-        ],
-      };
+      try {
+        await server.server.notification({
+          method: "notifications/tools/list_changed",
+          params: {},
+        });
+        log.notify("notifications/tools/list_changed");
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Sent tools/list_changed notification to all connected clients. Apps should respond by showing a notification.",
+            },
+          ],
+        };
+      } catch (err) {
+        log.error("test-tools-notification", err);
+        throw err;
+      }
     }
   );
 
