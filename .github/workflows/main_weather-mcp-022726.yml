@@ -92,6 +92,6 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'MCP-Weather-App'
+          app-name: 'Weather-MCP-022726'
           slot-name: 'Production'
           package: ./deploy
