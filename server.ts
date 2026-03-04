@@ -21,18 +21,18 @@ import {
 } from "@modelcontextprotocol/ext-apps/server";
 import { randomUUID } from "crypto";
 
-// Server-side logger — output goes to the terminal / /tmp/mcp-server.log
+// Server-side logger — always use stderr so stdio mode isn't corrupted
 const log = {
   tool: (name: string, input: Record<string, unknown>) =>
-    console.log(`[TOOL] ${name} called`, Object.keys(input).length ? JSON.stringify(input) : ""),
+    console.error(`[TOOL] ${name} called`, Object.keys(input).length ? JSON.stringify(input) : ""),
   done: (name: string, summary?: string) =>
-    console.log(`[TOOL] ${name} done${summary ? ` — ${summary}` : ""}`),
+    console.error(`[TOOL] ${name} done${summary ? ` — ${summary}` : ""}`),
   error: (name: string, err: unknown) =>
     console.error(`[ERROR] ${name} failed:`, err instanceof Error ? err.stack ?? err.message : err),
   notify: (method: string) =>
-    console.log(`[NOTIFY] sent ${method}`),
+    console.error(`[NOTIFY] sent ${method}`),
   tick: (i: number, total: number) =>
-    console.log(`[CLOCK] tick ${i}/${total}`),
+    console.error(`[CLOCK] tick ${i}/${total}`),
 };
 
 // Works both from source (server.ts) and compiled (dist/server.js)
@@ -975,7 +975,7 @@ export function createServer(): McpServer {
 
         // Check if the request was cancelled
         if (extra.signal?.aborted) {
-          console.log(`[CLOCK] aborted after ${i - 1}/${clampedTicks} ticks`);
+          console.error(`[CLOCK] aborted after ${i - 1}/${clampedTicks} ticks`);
           return {
             content: [
               {
@@ -1015,71 +1015,6 @@ export function createServer(): McpServer {
         throw err;
       }
     },
-  );
-
-  // Test tool to demonstrate resources/list_changed notification
-  server.registerTool(
-    "test-resources-notification",
-    {
-      title: "Test Resources Notification",
-      description:
-        "Triggers a resources/list_changed notification to demonstrate dynamic resource list updates. Visible on the GET /mcp SSE stream.",
-      inputSchema: {},
-    },
-    async (): Promise<CallToolResult> => {
-      log.tool("test-resources-notification", {});
-      try {
-        await server.server.notification({
-          method: "notifications/resources/list_changed",
-          params: {},
-        });
-        log.notify("notifications/resources/list_changed");
-        return {
-          content: [
-            {
-              type: "text",
-              text: "Sent resources/list_changed notification. Check the GET /mcp SSE stream.",
-            },
-          ],
-        };
-      } catch (err) {
-        log.error("test-resources-notification", err);
-        throw err;
-      }
-    }
-  );
-
-  // Test tool to demonstrate tools/list_changed notification
-  // In a real scenario, this would be triggered when tools are actually added/removed dynamically
-  server.registerTool(
-    "test-tools-notification",
-    {
-      title: "Test Tools Notification",
-      description:
-        "Triggers a tools/list_changed notification to demonstrate dynamic tool list updates. This simulates what happens when the server adds or removes tools.",
-      inputSchema: {},
-    },
-    async (): Promise<CallToolResult> => {
-      log.tool("test-tools-notification", {});
-      try {
-        await server.server.notification({
-          method: "notifications/tools/list_changed",
-          params: {},
-        });
-        log.notify("notifications/tools/list_changed");
-        return {
-          content: [
-            {
-              type: "text",
-              text: "Sent tools/list_changed notification to all connected clients. Apps should respond by showing a notification.",
-            },
-          ],
-        };
-      } catch (err) {
-        log.error("test-tools-notification", err);
-        throw err;
-      }
-    }
   );
 
   return server;

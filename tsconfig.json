@@ -15,5 +15,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["apps/globe/src", "apps/weather/src", "apps/clock/src", "server.ts"]
+  "include": ["apps/globe/src", "apps/weather/src", "apps/clock/src", "apps/shared", "apps/lifecycle/src", "apps/host-context/src", "apps/messaging/src", "apps/domain-cors/src", "apps/theming/src", "server.ts"]
 }

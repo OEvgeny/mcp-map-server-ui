@@ -9,11 +9,12 @@
     "dist"
   ],
   "scripts": {
-    "build": "npx tsc --noEmit && npx vite build && INPUT=apps/weather/weather-app.html npx vite build && INPUT=apps/clock/clock-app.html npx vite build && npx tsc -p tsconfig.server.json && npx esbuild server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --packages=external && npx esbuild main.ts --bundle --platform=node --format=esm --outfile=dist/index.js --packages=external --banner:js=\"#!/usr/bin/env node\"",
+    "build": "npx tsc --noEmit && npx vite build && INPUT=apps/weather/weather-app.html npx vite build && INPUT=apps/clock/clock-app.html npx vite build && INPUT=apps/lifecycle/lifecycle-app.html npx vite build && INPUT=apps/host-context/host-context-app.html npx vite build && INPUT=apps/messaging/messaging-app.html npx vite build && INPUT=apps/domain-cors/domain-cors-app.html npx vite build && INPUT=apps/theming/theming-app.html npx vite build && npx tsc -p tsconfig.server.json && npx esbuild server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --packages=external && npx esbuild main.ts --bundle --platform=node --format=esm --outfile=dist/index.js --packages=external --banner:js=\"#!/usr/bin/env node\" && npx esbuild conformance-server.ts --bundle --platform=node --format=esm --outfile=dist/conformance-server.js --packages=external && npx esbuild conformance-main.ts --bundle --platform=node --format=esm --outfile=dist/conformance-index.js --packages=external --banner:js=\"#!/usr/bin/env node\"",
     "watch": "npx vite build --watch",
     "serve:http": "node --experimental-specifier-resolution=node dist/index.js",
     "serve:stdio": "node dist/index.js --stdio",
     "start": "npm run serve:http",
+    "start:conformance": "node dist/conformance-index.js",
     "start:http": "npm run serve:http",
     "start:stdio": "npm run serve:stdio",
     "dev": "cross-env NODE_ENV=development concurrently \"npm run watch\" \"npm run serve:http\"",

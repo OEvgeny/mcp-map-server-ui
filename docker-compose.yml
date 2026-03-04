@@ -1,0 +1,15 @@
+services:
+  conformance-server:
+    build: .
+    ports:
+      - "3002:3002"
+    command: ["node", "dist/conformance-index.js"]
+    environment:
+      - PORT=3002
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
