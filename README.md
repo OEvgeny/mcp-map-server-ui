@@ -2,6 +2,30 @@
 
 Comprehensive MCP Apps capability testing suite featuring a Weather Dashboard and 3D Globe viewer. This project systematically tests and demonstrates all Model Context Protocol (MCP) Apps features.
 
+## Table of Contents
+
+- [Project Purpose](#-project-purpose)
+- [Recent Updates](#-recent-updates)
+- [What's Included](#-whats-included)
+- [MCP Apps Features - Testing Progress](#-mcp-apps-features---testing-progress)
+- [Weather Dashboard Features](#️-weather-dashboard-features)
+- [Globe Viewer Features](#️-globe-viewer-features)
+- [Getting Started](#-getting-started)
+- [Conformance Tests](#-conformance-tests)
+- [Testing](#-testing)
+- [How to See Each MCP Apps Function Being Tested](#-how-to-see-each-mcp-apps-function-being-tested)
+- [Testing Checklist](#-testing-checklist)
+- [Available Tools](#-available-tools)
+- [Architecture](#️-architecture)
+- [MCP Client Configuration](#-mcp-client-configuration)
+- [Learning Resources](#-learning-resources)
+- [Project Structure](#-project-structure)
+- [Deployment](#-deployment)
+- [Roadmap](#-roadmap)
+- [Contributing](#-contributing)
+- [License](#-license)
+- [Links](#-links)
+
 ## 🎯 Project Purpose
 
 This server demonstrates and tests the full spectrum of MCP Apps capabilities through interactive UI applications that communicate bidirectionally with MCP servers and host applications.
@@ -183,6 +207,75 @@ For stdio transport:
 ```bash
 npm run start:stdio
 ```
+
+---
+
+## 🧪 Conformance Tests
+
+The project includes 5 conformance test apps that run as a **separate MCP server**, testing core MCP Apps spec compliance:
+
+| Test App | Tool | What It Tests |
+|----------|------|---------------|
+| Lifecycle | `show-lifecycle` | MCP Apps §3 — init, teardown, tool input/result |
+| Host Context | `show-host-context` | MCP Apps §4 — theme, display mode, context changes |
+| Messaging | `show-messaging` | MCP Apps §5 — sendMessage, sendLog, sendOpenLink |
+| Domain & CORS | `show-domain-cors` | MCP Apps §2.4 — domain declaration, CORS preflight |
+| Theming | `show-theming` | MCP Apps §4.5 — CSS variables, theme adaptation |
+
+Additional server-only tools: `echo-tool`, `slow-task`, `slow-echo`, `test-resources-notification`, `test-tools-notification`.
+
+### Running with Docker
+
+```bash
+# Build and start the conformance server on port 3002
+docker compose up -d --build
+
+# Verify it's running
+curl http://localhost:3002/health
+# → {"status":"ok"}
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+### Running without Docker
+
+```bash
+npm run build
+npm run start:conformance
+```
+
+### Claude Desktop Configuration (WSL2)
+
+Add both servers to `claude_desktop_config.json` (`%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+
+```json
+{
+  "mcpServers": {
+    "mcp-map-server": {
+      "command": "wsl",
+      "args": ["/home/<user>/.nvm/versions/node/<version>/bin/node", "/path/to/mcp-map-server-ui/dist/index.js", "--stdio"]
+    },
+    "mcp-conformance-tests": {
+      "command": "wsl",
+      "args": ["/home/<user>/.nvm/versions/node/<version>/bin/node", "/path/to/mcp-map-server-ui/dist/conformance-index.js", "--stdio"]
+    }
+  }
+}
+```
+
+> **Note:** Use the full path to `node` (e.g. from `which node`) since WSL launched by Claude Desktop doesn't load your shell profile.
+
+### Test Prompts
+
+- "Show lifecycle tests"
+- "Show host context tests"
+- "Show messaging tests"
+- "Show domain cors tests"
+- "Show theming tests"
 
 ---
 
@@ -860,18 +953,29 @@ Add as a custom connector:
 
 ```
 mcp-map-server-ui/
-├── src/
-│   ├── mcp-app.ts           # CesiumJS globe app
-│   └── weather-app.ts       # Weather dashboard app (primary test)
-├── mcp-app.html             # Globe UI template
-├── weather-app.html         # Weather UI template
-├── server.ts                # MCP server with tool definitions
-├── main.ts                  # Server entry point
+├── apps/
+│   ├── globe/               # CesiumJS 3D globe app
+│   ├── weather/             # Weather dashboard app
+│   ├── clock/               # Clock timer app
+│   ├── lifecycle/           # Conformance: lifecycle tests
+│   ├── host-context/        # Conformance: host context tests
+│   ├── messaging/           # Conformance: messaging tests
+│   ├── domain-cors/         # Conformance: domain & CORS tests
+│   ├── theming/             # Conformance: theming tests
+│   └── shared/              # Shared test utilities
+├── server.ts                # Main MCP server (globe, weather, clock)
+├── main.ts                  # Main server HTTP entrypoint
+├── conformance-server.ts    # Conformance MCP server (5 test apps)
+├── conformance-main.ts      # Conformance server HTTP entrypoint
+├── Dockerfile               # Multi-stage Docker build
+├── docker-compose.yml       # Runs conformance server on port 3002
+├── .dockerignore
 ├── dist/                    # Built artifacts
-│   ├── mcp-app.html         # Bundled globe app
-│   ├── weather-app.html     # Bundled weather app
-│   ├── server.js            # Compiled server
-│   └── index.js             # Compiled entry point
+│   ├── apps/                # Bundled HTML apps
+│   ├── server.js            # Compiled main server
+│   ├── index.js             # Compiled main entrypoint
+│   ├── conformance-server.js # Compiled conformance server
+│   └── conformance-index.js  # Compiled conformance entrypoint
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
