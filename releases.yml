@@ -1,4 +1,8 @@
 releases:
+  - version: 0.0.7
+    release-name: MCP UI ESM v. 0.0.7
+    description: |
+      Even more MCP: new conformance server and new webmcp-capable server implementation.
   - version: 0.0.6
     release-name: MCP UI ESM v. 0.0.6
     description: |

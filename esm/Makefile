@@ -1,17 +1,23 @@
 export PATH := $(realpath ../node_modules/.bin):$(PATH)
 
-ASSETS := $(wildcard ../dist/*.html)
+ASSETS := $(wildcard ../dist/*.html) ../dist/apps
 
 # entry points
 SERVER_SRC := ../server.ts
+CONFORMANCE_SERVER_SRC := ../conformance-server.ts
+WEBMCP_SRC := entry/webmcp.js
 WEBMCP_SERVER_SRC := entry/webmcp-server.js
+WEBMCP_CONFORMANCE_SERVER_SRC := entry/webmcp-conformance-server.js
 INDEX_SRC := entry/index.js
 MCP_SRC := entry/mcp.js
 ZOD_SRC := module/zod.js
 
 # build targets
 SERVER_OUT := out/server.js
+CONFORMANCE_SERVER_OUT := out/conformance-server.js
+WEBMCP_OUT := out/webmcp.js
 WEBMCP_SERVER_OUT := out/webmcp-server.js
+WEBMCP_CONFORMANCE_SERVER_OUT := out/webmcp-conformance-server.js
 INDEX_OUT := out/index.js
 MCP_OUT := out/mcp.js
 ZOD_OUT := out/zod.js
@@ -24,8 +30,15 @@ ALIAS_CRYPTO := --alias:crypto=./module/crypto.js
 ALIAS_FS := --alias:fs/promises=./module/fs.js --alias:node:fs/promises=./module/fs.js \
             --alias:runtime:fs/promises=node:fs/promises --alias:runtime:url=node:url --external:node:fs/promises --external:node:url
 ALIAS_PATH := --alias:path=pathe --alias:node:path=pathe
+ALIAS_MCP := --alias:@modelcontextprotocol/sdk/server/mcp.js=./mcp.js \
+             --alias:@modelcontextprotocol/sdk/shared/protocol.js=./mcp.js \
+			 --alias:@modelcontextprotocol/sdk/types.js=./mcp.js \
+			 --alias:out-root/mcp.js=./mcp.js \
+			 --external:./mcp.js
 ALIAS_SERVER := --alias:out-root/server.js=./server.js --external:./server.js
-ALIAS_ZOD := --alias:zod/v3=./zod.js --alias:zod/v4/mini=./zod.js --alias:zod/v4=./zod.js --external:./zod.js
+ALIAS_CONFORMANCE_SERVER := --alias:out-root/conformance-server.js=./conformance-server.js --external:./conformance-server.js
+ALIAS_WEBMCP := --alias:out-root/webmcp.js=./webmcp.js --external:./webmcp.js
+ALIAS_ZOD := --alias:zod/v3=./zod.js --alias:zod/v4/mini=./zod.js --alias:zod/v4=./zod.js --alias:zod-to-json-schema=./zod.js --external:./zod.js
 ALIAS_PROCESS := --alias:process=node:process --alias:node:process=./process.js --external:./process.js
 
 # deps specific options
@@ -50,6 +63,15 @@ $(MCP_OUT): $(MCP_SRC) $(ZOD_OUT)
 
 $(MCP_OUT): Makefile
 
+$(WEBMCP_OUT): $(WEBMCP_SRC)
+	@mkdir -p out
+	esbuild $(WEBMCP_SRC) --outfile=$@ \
+		$(SHARED_FLAGS) \
+		$(ALIAS_ZOD) \
+		$(ALIAS_MCP)
+
+$(WEBMCP_OUT): Makefile
+
 $(SERVER_OUT): $(SERVER_SRC) $(ZOD_OUT)
 	@mkdir -p out
 	esbuild $(SERVER_SRC) --outfile=$@ \
@@ -58,17 +80,38 @@ $(SERVER_OUT): $(SERVER_SRC) $(ZOD_OUT)
 		$(ALIAS_FS) \
 		$(ALIAS_PATH) \
 		$(ALIAS_ZOD) \
-		$(ALIAS_CRYPTO)
+		$(ALIAS_CRYPTO) \
+		$(ALIAS_MCP)
 
 $(SERVER_OUT): Makefile
 
-$(WEBMCP_SERVER_OUT): $(ZOD_OUT) $(MCP_OUT) $(SERVER_OUT)
+$(WEBMCP_SERVER_OUT): $(WEBMCP_OUT) $(SERVER_OUT)
 $(WEBMCP_SERVER_OUT): $(WEBMCP_SERVER_SRC)
 	@mkdir -p out
 	esbuild $(WEBMCP_SERVER_SRC) --outfile=$@ \
 		$(SHARED_FLAGS) \
 		$(ALIAS_SERVER) \
-		$(ALIAS_ZOD)
+		$(ALIAS_WEBMCP)
+
+$(CONFORMANCE_SERVER_OUT): $(ZOD_OUT) $(MCP_OUT)
+$(CONFORMANCE_SERVER_OUT): $(CONFORMANCE_SERVER_SRC)
+	@mkdir -p out
+	esbuild $(CONFORMANCE_SERVER_SRC) --outfile=$@ \
+		$(SHARED_FLAGS) \
+		$(SERVER_FLAGS) \
+		$(ALIAS_FS) \
+		$(ALIAS_PATH) \
+		$(ALIAS_ZOD) \
+		$(ALIAS_CRYPTO) \
+		$(ALIAS_MCP)
+
+$(WEBMCP_CONFORMANCE_SERVER_OUT): $(WEBMCP_OUT) $(CONFORMANCE_SERVER_OUT)
+$(WEBMCP_CONFORMANCE_SERVER_OUT): $(WEBMCP_CONFORMANCE_SERVER_SRC)
+	@mkdir -p out
+	esbuild $(WEBMCP_CONFORMANCE_SERVER_SRC) --outfile=$@ \
+		$(SHARED_FLAGS) \
+		$(ALIAS_CONFORMANCE_SERVER) \
+		$(ALIAS_WEBMCP)
 
 $(INDEX_OUT): $(INDEX_SRC) $(MCP_OUT) $(SERVER_OUT)
 	@mkdir -p out
@@ -82,9 +125,9 @@ $(WEBMCP_SERVER_OUT): Makefile
 
 assets:
 	mkdir -p out
-	cp $(ASSETS) out
+	cp -r $(ASSETS) out
 
-all: assets $(INDEX_OUT) $(WEBMCP_SERVER_OUT)
+all: assets $(INDEX_OUT) $(WEBMCP_SERVER_OUT) $(WEBMCP_CONFORMANCE_SERVER_OUT)
 
 clean:
 	rm -rf out/*

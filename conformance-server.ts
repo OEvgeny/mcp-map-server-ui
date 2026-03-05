@@ -12,7 +12,7 @@ import type {
 } from "@modelcontextprotocol/sdk/types.js";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { z } from "zod";
+import { z } from "zod/v4";
 import {
   registerAppTool,
   registerAppResource,
@@ -20,6 +20,10 @@ import {
   RESOURCE_URI_META_KEY,
 } from "@modelcontextprotocol/ext-apps/server";
 import { randomUUID } from "crypto";
+
+if (!('process' in globalThis)) {
+  (globalThis as any).process = { env: {} };
+}
 
 // Server-side logger — always use stderr so stdio mode isn't corrupted
 const log = {
@@ -46,9 +50,9 @@ const THEMING_RESOURCE_URI = "ui://theming-test/theming-app.html";
 
 const DECLARED_DOMAIN = process.env.DECLARED_DOMAIN || "mcp-conformance.test";
 
-export function createServer(options?: { stdio?: boolean }): McpServer {
+export function createServer(options?: { stdio?: boolean }, ServerCtr = McpServer): McpServer {
   const isStdio = options?.stdio ?? false;
-  const server = new McpServer({
+  const server = new ServerCtr({
     name: "MCP Conformance Tests",
     version: "1.0.0",
   });

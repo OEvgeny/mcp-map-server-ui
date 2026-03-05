@@ -1,5 +1,5 @@
 import { BrowserModelContextServer } from "out-root/webmcp.js";
-import { createServer as createMCPServer } from "out-root/server.js";
+import { createServer as createMCPServer } from "out-root/conformance-server.js";
 
 class WebMCPServer extends BrowserModelContextServer {
   constructor(serverInfo, options) {
@@ -8,5 +8,5 @@ class WebMCPServer extends BrowserModelContextServer {
 }
 
 export function createServer() {
-  return createMCPServer(WebMCPServer);
+  return createMCPServer({}, WebMCPServer);
 }

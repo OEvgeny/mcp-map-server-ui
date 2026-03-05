@@ -1,5 +1,24 @@
 import { JSONRPCMessageSchema } from "@modelcontextprotocol/sdk/types.js";
 
+export { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+export { mergeCapabilities, Protocol } from '@modelcontextprotocol/sdk/shared/protocol.js';
+export {
+  CallToolRequestSchema,
+  CallToolResultSchema,
+  ContentBlockSchema,
+  EmptyResultSchema,
+  GetPromptRequestSchema,
+  ImplementationSchema,
+  JSONRPCMessageSchema,
+  ListPromptsRequestSchema,
+  ListResourcesRequestSchema,
+  ListToolsRequestSchema,
+  PingRequestSchema,
+  ReadResourceRequestSchema,
+  RequestIdSchema,
+  ToolSchema,
+} from '@modelcontextprotocol/sdk/types.js';
+
 // messageport-transport.js (ESM)
 //
 // A JSON-RPC transport over MessagePort (MessageChannel / postMessage transfer).

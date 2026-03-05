@@ -5,7 +5,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>WebMCP Tool Bridge</title>
-  <script src="https://unpkg.com/@mcp-b/global@latest/dist/index.iife.js"></script>
+  <script src="https://unpkg.com/@mcp-b/webmcp-polyfill@latest/dist/index.iife.js"></script>
+  <!-- <script src="https://unpkg.com/@mcp-b/global@latest/dist/index.iife.js"></script> -->
   <style>
     :root {
       --bg0: #070a12;
@@ -180,6 +181,7 @@
     }
 
     button,
+    select,
     .toggle {
       appearance: none;
       border: 1px solid var(--stroke);
@@ -194,6 +196,7 @@
     }
 
     button:hover,
+    select:hover,
     .toggle:hover {
       border-color: var(--stroke2);
       background: rgba(255, 255, 255, 0.07);
@@ -201,8 +204,18 @@
     }
 
     button:active,
+    select:active,
     .toggle:active {
       transform: translateY(0px);
+    }
+
+    select {
+      padding-right: 28px;
+      background-image: linear-gradient(45deg, transparent 50%, rgba(255, 255, 255, 0.6) 50%),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.6) 50%, transparent 50%);
+      background-position: calc(100% - 18px) 55%, calc(100% - 12px) 55%;
+      background-size: 6px 6px, 6px 6px;
+      background-repeat: no-repeat;
     }
 
     button.primary {
@@ -501,6 +514,10 @@
           <input id="hideTest" type="checkbox" checked />
           <span>Hide test tool</span>
         </label>
+        <select id="serverSelect" title="Choose MCP server">
+          <option value="default" selected>Map server</option>
+          <option value="conformance">Conformance server</option>
+        </select>
         <button id="loadPolyfill">Load polyfill</button>
         <button id="register" class="primary">Register MCP</button>
       </div>
@@ -553,7 +570,7 @@
             <pre class="log" id="output"></pre>
           </div>
           <div class="footer">
-            <div class="hint">Uses the WebMCP execute adapter on navigator.modelContext tools.</div>
+            <div class="hint">Uses WebMCP when available, otherwise navigator.modelContext.</div>
             <div class="hint" id="outputCount">0 bytes</div>
           </div>
         </section>
@@ -575,7 +592,7 @@
             <pre class="log" id="resourceOutput"></pre>
           </div>
           <div class="footer">
-            <div class="hint">Uses navigator.modelContext.readResource for resolved URIs.</div>
+            <div class="hint">Uses WebMCP readResource when available.</div>
             <div class="hint" id="resourceOutputCount">0 bytes</div>
           </div>
         </section>
@@ -584,8 +601,6 @@
   </div>
 
   <script type="module">
-    import { createServer } from "./webmcp-server.js";
-
     const $ = (sel) => document.querySelector(sel);
 
     const toolListEl = $("#toolList");
@@ -601,6 +616,7 @@
     const mcDotEl = $("#mcDot");
     const registerBtn = $("#register");
     const hideTestEl = $("#hideTest");
+    const serverSelectEl = $("#serverSelect");
     const runBtn = $("#run");
     const abortBtn = $("#abort");
     const loadPolyfillBtn = $("#loadPolyfill");
@@ -614,9 +630,9 @@
     const resourceOutputCountEl = $("#resourceOutputCount");
     const readResourceBtn = $("#readResource");
 
-    const server = createServer();
-
-    Object.assign(window, { server });
+    let server = null;
+    let webmcp = null;
+    let activeServerKind = null;
 
     let activeTool = null;
     let tools = [];
@@ -625,6 +641,67 @@
     let abortController = null;
 
     const encoder = new TextEncoder();
+      const QUERY_KEYS = {
+        server: "server",
+        hideTest: "hideTest",
+        tool: "tool",
+        resource: "resource",
+        params: "params",
+        resourceUri: "resourceUri",
+      };
+
+      function readQueryState() {
+        const params = new URLSearchParams(window.location.search);
+        return {
+          server: params.get(QUERY_KEYS.server) ?? "default",
+          hideTest: params.get(QUERY_KEYS.hideTest) !== "0",
+          tool: params.get(QUERY_KEYS.tool) ?? "",
+          resource: params.get(QUERY_KEYS.resource) ?? "",
+          params: params.get(QUERY_KEYS.params) ?? "",
+          resourceUri: params.get(QUERY_KEYS.resourceUri) ?? "",
+        };
+      }
+
+      function writeQueryState(state) {
+        const params = new URLSearchParams(window.location.search);
+        params.set(QUERY_KEYS.server, state.server || "default");
+        params.set(QUERY_KEYS.hideTest, state.hideTest ? "1" : "0");
+        if (state.tool) {
+          params.set(QUERY_KEYS.tool, state.tool);
+        } else {
+          params.delete(QUERY_KEYS.tool);
+        }
+        if (state.resource) {
+          params.set(QUERY_KEYS.resource, state.resource);
+        } else {
+          params.delete(QUERY_KEYS.resource);
+        }
+        if (state.params) {
+          params.set(QUERY_KEYS.params, state.params);
+        } else {
+          params.delete(QUERY_KEYS.params);
+        }
+        if (state.resourceUri) {
+          params.set(QUERY_KEYS.resourceUri, state.resourceUri);
+        } else {
+          params.delete(QUERY_KEYS.resourceUri);
+        }
+
+        const query = params.toString();
+        const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+        window.history.replaceState({}, "", nextUrl);
+      }
+
+      function persistQueryState() {
+        writeQueryState({
+          server: serverSelectEl.value,
+          hideTest: hideTestEl.checked,
+          tool: activeTool?.name ?? "",
+          resource: activeResource?.uri ?? "",
+          params: paramsEl.value.trim(),
+          resourceUri: resourceUriEl.value.trim(),
+        });
+      }
 
     function setModelContextStatus() {
       const hasModelContext = Boolean(navigator.modelContext);
@@ -633,6 +710,56 @@
       mcDotEl.style.boxShadow = hasModelContext
         ? "0 0 0 3px rgba(123,228,149,0.16)"
         : "0 0 0 3px rgba(255,107,138,0.22)";
+    }
+
+    function getActiveApi() {
+      if (webmcp) return webmcp;
+      return navigator.modelContext ?? null;
+    }
+
+    async function loadServer(kind) {
+      if (kind === activeServerKind && server) return;
+      const modulePath = kind === "conformance"
+        ? "./webmcp-conformance-server.js"
+        : "./webmcp-server.js";
+      const module = await import(modulePath);
+      server = module.createServer();
+      webmcp = server?.webmcp ?? null;
+      activeServerKind = kind;
+      Object.assign(window, { server });
+    }
+
+    function listToolsFromApi(api) {
+      if (!api?.listTools) return [];
+      return api.listTools();
+    }
+
+    function listResourcesFromApi(api) {
+      if (!api?.listResources) return [];
+      return api.listResources();
+    }
+
+    async function seedWebMcpFromServer() {
+      if (!webmcp) return;
+      const registeredResources = server?._registeredResources ?? {};
+      const existingResources = new Set(listResourcesFromApi(webmcp).map((resource) => resource.uri));
+
+      for (const [uri, resource] of Object.entries(registeredResources)) {
+        if (!resource || resource.enabled === false || existingResources.has(uri)) continue;
+        const metadata = resource.metadata ?? {};
+        try {
+          webmcp.registerResource({
+            name: resource.name ?? metadata.name ?? uri,
+            uri,
+            ...(metadata.description !== undefined ? { description: metadata.description } : {}),
+            ...(metadata.mimeType !== undefined ? { mimeType: metadata.mimeType } : {}),
+            read: async (url) => resource.readCallback(url, {}),
+          });
+          existingResources.add(uri);
+        } catch (e) {
+          console.warn("Failed to register resource in WebMCP:", uri, e);
+        }
+      }
     }
 
     async function ensurePolyfill() {
@@ -700,6 +827,7 @@
       schemaEl.textContent = tool?.inputSchema
         ? JSON.stringify(tool.inputSchema, null, 2)
         : "{}";
+        persistQueryState();
     }
 
     function updateResourceList(resourceList, templateList) {
@@ -771,6 +899,7 @@
       if (resource) {
         resourceUriEl.value = resource.uri;
       }
+        persistQueryState();
     }
 
     function selectTool(name) {
@@ -804,11 +933,28 @@
     async function registerAll() {
       await ensurePolyfill();
 
-      const mcTools = navigator.modelContext.listTools();
-      const mcResources = navigator.modelContext.listResources();
+      await loadServer(serverSelectEl.value);
+      if (!server) return;
+
+      await seedWebMcpFromServer();
+      const api = getActiveApi();
+      const mcTools = listToolsFromApi(api);
+      const mcResources = listResourcesFromApi(api);
 
       updateToolList(mcTools);
       updateResourceList(mcResources, []);
+
+        const queryState = readQueryState();
+        if (queryState.tool) {
+          selectTool(queryState.tool);
+        }
+        if (queryState.resource) {
+          selectResource(queryState.resource);
+        }
+        if (queryState.resourceUri && !activeResource) {
+          resourceUriEl.value = queryState.resourceUri;
+        }
+        persistQueryState();
     }
 
     async function runTool() {
@@ -830,15 +976,16 @@
 
       runHintEl.textContent = "Running...";
 
-      const mcTools = navigator.modelContext.listTools();
+      const api = getActiveApi();
+      const mcTools = listToolsFromApi(api);
       const mcTool = mcTools.find((t) => t.name === activeTool.name);
 
       try {
-        if (!navigator.modelContext?.callTool) {
-          throw new Error("Tool callTool() not available on navigator.modelContext");
+        if (!api?.callTool) {
+          throw new Error("callTool() not available on the active WebMCP API");
         }
 
-        const result = await navigator.modelContext.callTool({ name: mcTool.name, arguments: params });
+        const result = await api.callTool({ name: mcTool.name, arguments: params });
         writeOutput(result);
         runHintEl.textContent = "Done.";
       } catch (e) {
@@ -856,11 +1003,12 @@
 
       resourceHintEl.textContent = "Reading...";
       try {
-        if (!navigator.modelContext?.readResource) {
-          throw new Error("readResource() not available on navigator.modelContext");
+        const api = getActiveApi();
+        if (!api?.readResource) {
+          throw new Error("readResource() not available on the active WebMCP API");
         }
 
-        const result = await navigator.modelContext.readResource(uri);
+        const result = await api.readResource(uri);
         writeResourceOutput(result);
         resourceHintEl.textContent = "Done.";
       } catch (e) {
@@ -875,13 +1023,32 @@
     }
 
     registerBtn.addEventListener("click", registerAll);
+    serverSelectEl.addEventListener("change", () => {
+      activeTool = null;
+      activeResource = null;
+      tools = [];
+      resources = [];
+      toolListEl.textContent = "";
+      resourceListEl.textContent = "";
+      toolCountEl.textContent = "0 tools";
+      resourceCountEl.textContent = "0 resources";
+      renderToolDetails(null);
+      renderResourceDetails(null);
+      persistQueryState();
+    });
+    serverSelectEl.addEventListener("change", registerAll);
+    hideTestEl.addEventListener("change", () => {
+      registerAll();
+      persistQueryState();
+    });
     loadPolyfillBtn.addEventListener("click", () => ensurePolyfill().catch((e) => {
       writeOutput({ error: e?.message ?? String(e) });
     }));
-    hideTestEl.addEventListener("change", registerAll);
     runBtn.addEventListener("click", runTool);
     abortBtn.addEventListener("click", abortRun);
     readResourceBtn.addEventListener("click", readResource);
+    paramsEl.addEventListener("input", persistQueryState);
+    resourceUriEl.addEventListener("input", persistQueryState);
     paramsEl.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
@@ -897,6 +1064,15 @@
     });
 
     setModelContextStatus();
+    const queryState = readQueryState();
+    serverSelectEl.value = queryState.server === "conformance" ? "conformance" : "default";
+    hideTestEl.checked = queryState.hideTest;
+    if (queryState.params) {
+      paramsEl.value = queryState.params;
+    }
+    if (queryState.resourceUri) {
+      resourceUriEl.value = queryState.resourceUri;
+    }
     registerAll();
   </script>
 </body>
