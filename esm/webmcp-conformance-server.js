@@ -1,15 +1,15 @@
-// entry/webmcp-server.js
+// entry/webmcp-conformance-server.js
 import { BrowserModelContextServer } from "./webmcp.js";
-import { createServer as createMCPServer } from "./server.js";
+import { createServer as createMCPServer } from "./conformance-server.js";
 var WebMCPServer = class extends BrowserModelContextServer {
   constructor(serverInfo, options) {
     super(serverInfo, { ...options ?? {}, native: navigator.modelContext });
   }
 };
 function createServer() {
-  return createMCPServer(WebMCPServer);
+  return createMCPServer({}, WebMCPServer);
 }
 export {
   createServer
 };
-//# sourceMappingURL=webmcp-server.js.map
+//# sourceMappingURL=webmcp-conformance-server.js.map

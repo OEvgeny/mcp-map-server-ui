@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../entry/webmcp-conformance-server.js"],
+  "sourcesContent": ["import { BrowserModelContextServer } from \"out-root/webmcp.js\";\nimport { createServer as createMCPServer } from \"out-root/conformance-server.js\";\n\nclass WebMCPServer extends BrowserModelContextServer {\n  constructor(serverInfo, options) {\n    super(serverInfo, { ...(options ?? {}), native: navigator.modelContext });\n  }\n}\n\nexport function createServer() {\n  return createMCPServer({}, WebMCPServer);\n}\n"],
+  "mappings": ";AAAA,SAAS,iCAAiC;AAC1C,SAAS,gBAAgB,uBAAuB;AAEhD,IAAM,eAAN,cAA2B,0BAA0B;AAAA,EACnD,YAAY,YAAY,SAAS;AAC/B,UAAM,YAAY,EAAE,GAAI,WAAW,CAAC,GAAI,QAAQ,UAAU,aAAa,CAAC;AAAA,EAC1E;AACF;AAEO,SAAS,eAAe;AAC7B,SAAO,gBAAgB,CAAC,GAAG,YAAY;AACzC;",
+  "names": []
+}
