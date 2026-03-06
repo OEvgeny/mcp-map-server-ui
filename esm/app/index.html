@@ -468,7 +468,8 @@
 
     <script type="module">
       import { startMessageChannelServer } from "./index.js";
-      import { MessagePortClientTransport } from "./mcp.js";
+      import { createServer } from "./webmcp-conformance-server.js";
+      import { MessagePortClientTransport, MessagePortServerTransport } from "./mcp.js";
 
       const $ = (sel) => document.querySelector(sel);
 
@@ -600,10 +601,13 @@
 
       // Start the server using your entry point
       // (this will create MCP server and connect with MessagePortServerTransport(port))
-      startMessageChannelServer(channel.port2).catch((e) => {
-        record("meta", `Server start error: ${e?.message ?? String(e)}`);
-        rerender();
-      });
+      const server = createServer();
+      await server.connect(new MessagePortServerTransport(channel.port2));
+
+      // startMessageChannelServer(channel.port2).catch((e) => {
+      //   record("meta", `Server start error: ${e?.message ?? String(e)}`);
+      //   rerender();
+      // });
 
       // Create client transport on the other port
       const transport = new MessagePortClientTransport(channel.port1);

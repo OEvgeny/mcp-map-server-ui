@@ -1,4 +1,8 @@
 releases:
+  - version: 0.0.8
+    release-name: MCP UI ESM v. 0.0.8
+    description: |
+      Fixup WebMCP server to populate resources and prompts as well and remove interference with MCP RPC.
   - version: 0.0.7
     release-name: MCP UI ESM v. 0.0.7
     description: |
