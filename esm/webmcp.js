@@ -1139,6 +1139,26 @@ function mcpToolToDescriptor(name, mcpTool) {
     _mcp: mcpTool
   };
 }
+function mcpResourceToDescriptor(uri2, mcpResource) {
+  return {
+    uri: uri2,
+    name: mcpResource.name,
+    description: mcpResource.metadata?.description,
+    mimeType: mcpResource.metadata?.mimeType,
+    read: async (url) => mcpResource.readCallback(url, {}),
+    _mcp: mcpResource
+  };
+}
+function mcpPromptToDescriptor(name, mcpPrompt) {
+  return {
+    name,
+    title: mcpPrompt.title,
+    description: mcpPrompt.description ?? "",
+    ...mcpPrompt.argsSchema ? { argsSchema: zodSchemaToJsonSchema(mcpPrompt.argsSchema) } : {},
+    get: async (args) => mcpPrompt.argsSchema ? mcpPrompt.callback(args, {}) : mcpPrompt.callback({}),
+    _mcp: mcpPrompt
+  };
+}
 function normalizeToolResponse(value) {
   if (value && typeof value === "object" && "content" in value && Array.isArray(value.content)) {
     return value;
@@ -1324,11 +1344,63 @@ var BrowserModelContextServer = class extends BaseMcpServer {
     }
   }
   /**
+   * Sync _registeredResources (MCP API) into the resources Map as WebMCP descriptors.
+   */
+  syncMcpResources() {
+    const mcpResources = this._registeredResources;
+    for (const [uri2, mcpResource] of Object.entries(mcpResources)) {
+      if (!mcpResource.enabled) {
+        const existing2 = this.resources.get(uri2);
+        if (existing2?.descriptor._mcp) this.resources.delete(uri2);
+        continue;
+      }
+      const existing = this.resources.get(uri2);
+      if (existing?.descriptor._mcp === mcpResource) continue;
+      this.resources.set(uri2, { descriptor: mcpResourceToDescriptor(uri2, mcpResource), nativeRegistered: false });
+    }
+    for (const [uri2, entry] of this.resources) {
+      if (entry.descriptor._mcp && !(uri2 in mcpResources)) this.resources.delete(uri2);
+    }
+  }
+  /**
+   * Sync _registeredPrompts (MCP API) into the prompts Map as WebMCP descriptors.
+   */
+  syncMcpPrompts() {
+    const mcpPrompts = this._registeredPrompts;
+    for (const [name, mcpPrompt] of Object.entries(mcpPrompts)) {
+      if (!mcpPrompt.enabled) {
+        const existing2 = this.prompts.get(name);
+        if (existing2?.descriptor._mcp) this.prompts.delete(name);
+        continue;
+      }
+      const existing = this.prompts.get(name);
+      if (existing?.descriptor._mcp === mcpPrompt) continue;
+      this.prompts.set(name, { descriptor: mcpPromptToDescriptor(name, mcpPrompt), nativeRegistered: false });
+    }
+    for (const [name, entry] of this.prompts) {
+      if (entry.descriptor._mcp && !(name in mcpPrompts)) this.prompts.delete(name);
+    }
+  }
+  /**
    * Override McpServer's sendToolListChanged to sync MCP tools and native.
    */
   sendToolListChanged() {
     this.syncMcpTools();
     super.sendToolListChanged();
+  }
+  /**
+   * Override McpServer's sendResourceListChanged to sync MCP resources.
+   */
+  sendResourceListChanged() {
+    this.syncMcpResources();
+    super.sendResourceListChanged();
+  }
+  /**
+   * Override McpServer's sendPromptListChanged to sync MCP prompts.
+   */
+  sendPromptListChanged() {
+    this.syncMcpPrompts();
+    super.sendPromptListChanged();
   }
   /**
    * Remove all tools from native. Tools remain registered in the MCP server.
@@ -1505,27 +1577,6 @@ var BrowserModelContextServer = class extends BaseMcpServer {
     return normalizeToolResponse(await tool.descriptor.execute(args, client));
   }
   async connect(transport) {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: this.listToolsInternal()
-    }));
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const result = await this.callToolInternal(request.params.name, request.params.arguments);
-      return result;
-    });
-    this.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-      resources: this.listResourcesInternal()
-    }));
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-      const result = await this.readResourceInternal(request.params.uri);
-      return result;
-    });
-    this.server.setRequestHandler(ListPromptsRequestSchema, async () => ({
-      prompts: this.listPromptsInternal()
-    }));
-    this.server.setRequestHandler(GetPromptRequestSchema, async (request) => {
-      const result = await this.getPromptInternal(request.params.name, request.params.arguments);
-      return result;
-    });
     this.connected = true;
     return super.connect(transport);
   }
